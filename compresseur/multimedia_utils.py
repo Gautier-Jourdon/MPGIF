@@ -123,9 +123,28 @@ def compress_audio_mp3(input_audio_path: str) -> bytes:
         if os.path.exists(output_temp):
             os.remove(output_temp)
 
-def save_audio_to_file(audio_data: bytes, output_path: str):
     """
     Saves audio bytes to a file (e.g., .opus).
     """
     with open(output_path, 'wb') as f:
         f.write(audio_data)
+
+def normalize_audio(input_path: str, output_path: str, target_lufs=-18.0, true_peak=-1.0):
+    """
+    Normalizes audio using ffmpeg loudnorm filter.
+    Target: -18 LUFS (Integrated), -1 dBTP (True Peak).
+    """
+    try:
+        cmd = [
+            get_ffmpeg_cmd(), '-y',
+            '-i', input_path,
+            '-af', f'loudnorm=I={target_lufs}:TP={true_peak}:LRA=11',
+            '-ar', '44100',
+            output_path
+        ]
+        # First pass normalization (sufficient for most web use cases without dual-pass)
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        return True
+    except Exception as e:
+        print(f"⚠️ Audio normalization failed: {e}")
+        return False

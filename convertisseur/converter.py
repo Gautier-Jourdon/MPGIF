@@ -5,13 +5,29 @@ import tempfile
 import subprocess
 from PIL import Image
 from fichier.mpgif_structure import MPGIFWriter, MPGIFReader
-from compresseur.multimedia_utils import compress_frame_webp, compress_audio_mp3, extract_audio_from_video, get_ffmpeg_cmd, create_delta_image
+from compresseur.multimedia_utils import compress_frame_webp, compress_audio_mp3, extract_audio_from_video, get_ffmpeg_cmd, create_delta_image, normalize_audio
 from fichier.mpgif_structure import MPGIFWriter, MPGIFReader, CODEC_MP3
 
-def video_to_mpgif(input_path, output_path, target_fps=15, width=480, height=None, quality=75, loop=0, progress_callback=None):
+PRESETS = {
+    "gif-like": {"fps": 12, "width": 320, "quality": 60, "loop": 0, "audio": False},
+    "balanced": {"fps": 15, "width": 480, "quality": 75, "loop": 0, "audio": True},
+    "hq": {"fps": 24, "width": 720, "quality": 90, "loop": 0, "audio": True},
+    "archival": {"fps": 30, "width": 1080, "quality": 95, "loop": 1, "audio": True},
+}
+
+def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=480, height=None, quality=75, loop=0, metadata=None, progress_callback=None):
     """
     Converts a video file (MP4, WebM, GIF) to .mpgif.
     """
+    # Apply Preset if specified
+    if preset and preset in PRESETS:
+        p = PRESETS[preset]
+        target_fps = p['fps']
+        width = p['width']
+        quality = p['quality']
+        loop = p['loop']
+        # Audio handling logic below
+        
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
@@ -31,16 +47,35 @@ def video_to_mpgif(input_path, output_path, target_fps=15, width=480, height=Non
             height = int(orig_height * ratio)
 
         audio_temp_path = os.path.join(temp_dir, "audio.wav")
+        audio_norm_path = os.path.join(temp_dir, "audio_norm.wav")
         audio_data = None
-        try:
-            extract_audio_from_video(input_path, audio_temp_path)
-            if os.path.exists(audio_temp_path):
-                print("🎵 Compressing Audio (MP3)...")
-                audio_data = compress_audio_mp3(audio_temp_path)
-        except Exception as e:
-            print(f"⚠️ Audio extraction failed (might be silent video): {e}")
+        
+        # Audio extraction and normalization
+        should_process_audio = True
+        if preset and preset in PRESETS and not PRESETS[preset]['audio']:
+            should_process_audio = False
+            
+        if should_process_audio:
+            try:
+                extract_audio_from_video(input_path, audio_temp_path)
+                if os.path.exists(audio_temp_path):
+                    print("🎵 Audio Extracted. Normalizing to -18 LUFS...")
+                    if normalize_audio(audio_temp_path, audio_norm_path):
+                        print("✅ Normalized. Compressing (MP3)...")
+                        audio_data = compress_audio_mp3(audio_norm_path)
+                    else:
+                        print("⚠️ Normalization failed, using original audio.")
+                        audio_data = compress_audio_mp3(audio_temp_path)
+            except Exception as e:
+                print(f"⚠️ Audio extraction/processing failed: {e}")
 
         writer = MPGIFWriter(output_path, width, height, target_fps, loop)
+        
+        # Add Metadata
+        if metadata:
+            for k, v in metadata.items():
+                writer.set_metadata(k, v)
+        
         if audio_data:
             writer.set_audio(audio_data, codec=CODEC_MP3)
 

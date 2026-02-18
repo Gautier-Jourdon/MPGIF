@@ -1,177 +1,281 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPGIF Web Player</title>
+    <title>MPGIF Interactive Player</title>
     <style>
-        body { 
-            font-family: 'Segoe UI', sans-serif; 
-            background: #1e1e1e; 
-            color: white; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            margin: 0; 
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #111;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
         }
-        #player-container {
-            background: #2d2d2d;
+
+        #gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
             padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 90%;
+            max-width: 1200px;
+        }
+
+        .mpgif-container {
+            background: #222;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            aspect-ratio: 16/9;
+            /* Default aspect, adjusts JS */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mpgif-container:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+            border: 2px solid #ff9800;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+
+        .meta-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            font-size: 0.85em;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mpgif-container:hover .meta-overlay {
+            transform: translateY(0);
+        }
+
+        .badge {
+            background: #ff9800;
+            color: black;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.75em;
+            margin-right: 5px;
+        }
+
+        #drop-zone {
+            border: 2px dashed #444;
+            padding: 40px;
+            margin-top: 20vh;
             text-align: center;
+            border-radius: 12px;
+            cursor: pointer;
+            color: #888;
         }
-        canvas { 
-            background: black; 
-            max-width: 100%; 
-            max-height: 70vh; 
-            border-radius: 4px; 
-            display: block; 
-            margin: 0 auto 15px auto;
+
+        #drop-zone:hover {
+            border-color: #ff9800;
+            color: #fff;
+            background: #222;
         }
-        #controls { margin-top: 10px; }
-        input[type="file"] { display: none; }
-        .btn {
-            background: #007acc; border: none; padding: 10px 20px; 
-            color: white; cursor: pointer; border-radius: 5px; font-weight: bold;
-            transition: background 0.2s;
+
+        input[type="range"] {
+            width: 80px;
+            accent-color: #ff9800;
         }
-        .btn:hover { background: #0098ff; }
-        #status { margin-top: 10px; font-size: 0.9em; color: #aaa; }
-        .drop-zone {
-            border: 2px dashed #444; padding: 40px; border-radius: 10px; cursor: pointer;
+
+        .upload-mod {
+            display: block;
         }
-        .drop-zone:hover { border-color: #007acc; background: #333; }
+
+        .gallery-mod {
+            display: none;
+            width: 100%;
+        }
     </style>
 </head>
+
 <body>
 
-    <div id="player-container">
-        <div id="upload-view">
-            <h2>MPGIF Player</h2>
-            <div class="drop-zone" onclick="document.getElementById('file-input').click()">
-                <p>Click or Drag & Drop .mpgif file here</p>
-            </div>
-            <input type="file" id="file-input" accept=".mpgif">
-        </div>
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <h2>📂 Drag & Drop MPGIF files here</h2>
+        <p>or click to browse</p>
+    </div>
+    <input type="file" id="file-input" accept=".mpgif" multiple style="display:none">
 
-        <div id="play-view" style="display: none;">
-            <canvas id="canvas"></canvas>
-            <div id="controls">
-                <button class="btn" onclick="togglePlay()">Play/Pause</button>
-                <button class="btn" onclick="reset()">Open New File</button>
-            </div>
-            <p id="status"></p>
-        </div>
+    <div id="gallery" class="gallery-mod">
+        <!-- MPGIF Items will be injected here -->
     </div>
 
     <script src="mpgif_reader.js"></script>
     <script>
-        const fileInput = document.getElementById('file-input');
-        const uploadView = document.getElementById('upload-view');
-        const playView = document.getElementById('play-view');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const statusEl = document.getElementById('status');
-        
-        let reader = null;
-        let isPlaying = false;
-        let currentFrame = 0;
-        let images = [];
-        let intervalId = null;
-        let audioCtx = null;
-        let audioSource = null;
+        const gallery = document.getElementById('gallery');
+        const dropZone = document.getElementById('drop-zone');
+        let globalVolume = 0.5;
 
-        document.body.ondragover = (e) => e.preventDefault();
-        document.body.ondrop = (e) => {
+        // --- Drag & Drop ---
+        document.body.ondragover = e => e.preventDefault();
+        document.body.ondrop = e => {
             e.preventDefault();
-            if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+            handleFiles(e.dataTransfer.files);
         };
+        document.getElementById('file-input').onchange = e => handleFiles(e.target.files);
 
-        fileInput.onchange = (e) => {
-            if (e.target.files.length) loadFile(e.target.files[0]);
-        };
+        function handleFiles(files) {
+            if (files.length > 0) {
+                dropZone.style.display = 'none';
+                gallery.style.display = 'grid';
+                Array.from(files).forEach(file => {
+                    if (file.name.toLowerCase().endsWith('.mpgif')) {
+                        loadMPGIF(file);
+                    }
+                });
+            }
+        }
 
-        function loadFile(file) {
+        // --- Core Loading & Display Logic ---
+        function loadMPGIF(file) {
             const fr = new FileReader();
             fr.onload = async () => {
                 try {
-                    reader = new MPGIFReader(fr.result);
-                    reader.read();
-                    
-                    canvas.width = reader.width;
-                    canvas.height = reader.height;
-                    
-                    statusEl.textContent = "Loading frames...";
-                    images = await Promise.all(reader.frames.map(src => {
-                        return new Promise(resolve => {
-                            const img = new Image();
-                            img.src = src;
-                            img.onload = () => resolve(img);
-                        });
-                    }));
-
-                    uploadView.style.display = 'none';
-                    playView.style.display = 'block';
-                    
-                    if (reader.audioData) {
-                        try {
-                            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                            const audioBuffer = await audioCtx.decodeAudioData(reader.audioData.slice(0));
-                            playAudio(audioBuffer);
-                        } catch (e) {
-                            console.error("Audio decode error (browser might not support raw Opus packet without container):", e);
-                            statusEl.textContent = "Audio decode failed (silent).";
-                        }
-                    }
-
-                    startPlayback();
+                    const mpgif = new MPGIFReader(fr.result);
+                    mpgif.read();
+                    createViewer(mpgif);
                 } catch (e) {
-                    alert("Error loading file: " + e.message);
-                    console.error(e);
+                    console.error("Error loading", file.name, e);
                 }
             };
             fr.readAsArrayBuffer(file);
         }
 
-        function playAudio(buffer) {
-            if (audioSource) audioSource.stop();
-            audioSource = audioCtx.createBufferSource();
-            audioSource.buffer = buffer;
-            audioSource.connect(audioCtx.destination);
-            audioSource.loop = (reader.loopCount === 0);
-            audioSource.start();
-        }
+        async function createViewer(mpgif) {
+            // Unpack images (async)
+            const images = await Promise.all(mpgif.frames.map(src => {
+                return new Promise(resolve => {
+                    const img = new Image();
+                    img.src = src;
+                    img.onload = () => resolve(img);
+                });
+            }));
 
-        function startPlayback() {
-            if (intervalId) clearInterval(intervalId);
-            isPlaying = true;
-            statusEl.textContent = `Playing: ${reader.width}x${reader.height} @ ${reader.fps}FPS`;
-            
-            intervalId = setInterval(() => {
-                if (images.length > 0) {
-                    ctx.drawImage(images[currentFrame], 0, 0);
-                    currentFrame = (currentFrame + 1) % images.length;
-                }
-            }, 1000 / reader.fps);
-        }
+            // DOM Construction
+            const container = document.createElement('div');
+            container.className = 'mpgif-container';
+            container.style.aspectRatio = `${mpgif.width}/${mpgif.height}`;
 
-        function togglePlay() {
-            if (isPlaying) {
-                clearInterval(intervalId);
-                if (audioCtx) audioCtx.suspend();
-                isPlaying = false;
-            } else {
-                startPlayback();
-                if (audioCtx) audioCtx.resume();
+            const canvas = document.createElement('canvas');
+            canvas.width = mpgif.width;
+            canvas.height = mpgif.height;
+            const ctx = canvas.getContext('2d');
+
+            // Draw thumbnail (first frame)
+            if (images.length > 0) ctx.drawImage(images[0], 0, 0);
+
+            // Metadata UI
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'meta-overlay';
+            const title = mpgif.metadata?.title || "Untitled";
+            const author = mpgif.metadata?.author || "Unknown";
+            const hasAudio = mpgif.audioData ? "🔊" : "🔇";
+
+            metaDiv.innerHTML = `
+                <div>
+                    <span class="badge">MPGIF</span>
+                    <b>${title}</b> by ${author}
+                </div>
+                <div>${hasAudio}</div>
+            `;
+
+            container.appendChild(canvas);
+            container.appendChild(metaDiv);
+            gallery.appendChild(container);
+
+            // Audio Setup
+            let audioCtx = null;
+            let audioBuffer = null;
+            let audioSource = null;
+            let gainNode = null;
+
+            if (mpgif.audioData) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                try {
+                    audioBuffer = await audioCtx.decodeAudioData(mpgif.audioData.slice(0));
+                } catch (e) { console.warn("Audio decode failed", e); }
             }
-        }
 
-        function reset() {
-            location.reload();
+            // Hover Logic
+            let interval = null;
+            let frameIdx = 0;
+
+            const play = () => {
+                // Video
+                if (!interval) {
+                    interval = setInterval(() => {
+                        frameIdx = (frameIdx + 1) % images.length;
+                        ctx.drawImage(images[frameIdx], 0, 0);
+                    }, 1000 / mpgif.fps);
+                }
+
+                // Audio
+                if (audioCtx && audioBuffer) {
+                    if (audioSource) audioSource.stop();
+                    audioSource = audioCtx.createBufferSource();
+                    audioSource.buffer = audioBuffer;
+                    audioSource.loop = (mpgif.loopCount === 0);
+
+                    gainNode = audioCtx.createGain();
+                    gainNode.gain.value = globalVolume; // Cap at 0.5 for safety
+
+                    audioSource.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    audioSource.start();
+                }
+            };
+
+            const stop = () => {
+                if (interval) {
+                    clearInterval(interval);
+                    interval = null;
+                }
+                // Reset to first frame
+                frameIdx = 0;
+                ctx.drawImage(images[0], 0, 0);
+
+                // Stop Audio
+                if (audioSource) {
+                    try { audioSource.stop(); } catch (e) { }
+                    audioSource = null;
+                }
+            };
+
+            container.addEventListener('mouseenter', play);
+            container.addEventListener('mouseleave', stop);
+
+            // Click to toggle static play (mobile friendly-ish)
+            container.addEventListener('click', () => {
+                if (interval) stop(); else play();
+            });
         }
     </script>
 </body>
+
 </html>
