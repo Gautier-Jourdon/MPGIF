@@ -1,4 +1,3 @@
-# mpgif-file
 # MPGIF - High Efficiency Motion Picture Format
 
 MPGIF is a modern, lightweight animation format designed to bridge the gap between heavy video files and inefficient GIFs. It combines **WebP** image compression with **Opus/MP3** audio encoding to deliver high-quality, sound-enabled animations at a fraction of the size.
@@ -21,7 +20,7 @@ MPGIF is a modern, lightweight animation format designed to bridge the gap betwe
 
 ### Setup
 ```bash
-git clone https://github.com/your-username/MPGIF.git
+git clone https://github.com/Gautier-Jourdon/MPGIF.git
 cd MPGIF
 pip install -r requirements.txt
 ```
