@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPGIF Web Player</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: #1e1e1e; 
+            color: white; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        #player-container {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+        canvas { 
+            background: black; 
+            max-width: 100%; 
+            max-height: 70vh; 
+            border-radius: 4px; 
+            display: block; 
+            margin: 0 auto 15px auto;
+        }
+        #controls { margin-top: 10px; }
+        input[type="file"] { display: none; }
+        .btn {
+            background: #007acc; border: none; padding: 10px 20px; 
+            color: white; cursor: pointer; border-radius: 5px; font-weight: bold;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #0098ff; }
+        #status { margin-top: 10px; font-size: 0.9em; color: #aaa; }
+        .drop-zone {
+            border: 2px dashed #444; padding: 40px; border-radius: 10px; cursor: pointer;
+        }
+        .drop-zone:hover { border-color: #007acc; background: #333; }
+    </style>
+</head>
+<body>
+
+    <div id="player-container">
+        <div id="upload-view">
+            <h2>MPGIF Player</h2>
+            <div class="drop-zone" onclick="document.getElementById('file-input').click()">
+                <p>Click or Drag & Drop .mpgif file here</p>
+            </div>
+            <input type="file" id="file-input" accept=".mpgif">
+        </div>
+
+        <div id="play-view" style="display: none;">
+            <canvas id="canvas"></canvas>
+            <div id="controls">
+                <button class="btn" onclick="togglePlay()">Play/Pause</button>
+                <button class="btn" onclick="reset()">Open New File</button>
+            </div>
+            <p id="status"></p>
+        </div>
+    </div>
+
+    <script src="mpgif_reader.js"></script>
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const uploadView = document.getElementById('upload-view');
+        const playView = document.getElementById('play-view');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
+        
+        let reader = null;
+        let isPlaying = false;
+        let currentFrame = 0;
+        let images = [];
+        let intervalId = null;
+        let audioCtx = null;
+        let audioSource = null;
+
+        document.body.ondragover = (e) => e.preventDefault();
+        document.body.ondrop = (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+        };
+
+        fileInput.onchange = (e) => {
+            if (e.target.files.length) loadFile(e.target.files[0]);
+        };
+
+        function loadFile(file) {
+            const fr = new FileReader();
+            fr.onload = async () => {
+                try {
+                    reader = new MPGIFReader(fr.result);
+                    reader.read();
+                    
+                    canvas.width = reader.width;
+                    canvas.height = reader.height;
+                    
+                    statusEl.textContent = "Loading frames...";
+                    images = await Promise.all(reader.frames.map(src => {
+                        return new Promise(resolve => {
+                            const img = new Image();
+                            img.src = src;
+                            img.onload = () => resolve(img);
+                        });
+                    }));
+
+                    uploadView.style.display = 'none';
+                    playView.style.display = 'block';
+                    
+                    if (reader.audioData) {
+                        try {
+                            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                            const audioBuffer = await audioCtx.decodeAudioData(reader.audioData.slice(0));
+                            playAudio(audioBuffer);
+                        } catch (e) {
+                            console.error("Audio decode error (browser might not support raw Opus packet without container):", e);
+                            statusEl.textContent = "Audio decode failed (silent).";
+                        }
+                    }
+
+                    startPlayback();
+                } catch (e) {
+                    alert("Error loading file: " + e.message);
+                    console.error(e);
+                }
+            };
+            fr.readAsArrayBuffer(file);
+        }
+
+        function playAudio(buffer) {
+            if (audioSource) audioSource.stop();
+            audioSource = audioCtx.createBufferSource();
+            audioSource.buffer = buffer;
+            audioSource.connect(audioCtx.destination);
+            audioSource.loop = (reader.loopCount === 0);
+            audioSource.start();
+        }
+
+        function startPlayback() {
+            if (intervalId) clearInterval(intervalId);
+            isPlaying = true;
+            statusEl.textContent = `Playing: ${reader.width}x${reader.height} @ ${reader.fps}FPS`;
+            
+            intervalId = setInterval(() => {
+                if (images.length > 0) {
+                    ctx.drawImage(images[currentFrame], 0, 0);
+                    currentFrame = (currentFrame + 1) % images.length;
+                }
+            }, 1000 / reader.fps);
+        }
+
+        function togglePlay() {
+            if (isPlaying) {
+                clearInterval(intervalId);
+                if (audioCtx) audioCtx.suspend();
+                isPlaying = false;
+            } else {
+                startPlayback();
+                if (audioCtx) audioCtx.resume();
+            }
+        }
+
+        function reset() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>
