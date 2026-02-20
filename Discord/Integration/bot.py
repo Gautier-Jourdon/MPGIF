@@ -78,16 +78,30 @@ async def catalogue(interaction: discord.Interaction):
         gallery_url = f"{base_url}/browse?wh={webhook.url}&uid={user_id}&user={username}&channel={channel_name}&gid={guild_id}"
         
         embed = discord.Embed(
-            title="🖼️ MPGIF Visual Gallery",
-            description=f"Browse and post MPGIFs as {interaction.user.mention}!",
-            color=0x00ff00
+            title="SYSTEM PROTOCOL: MPGIF TERMINAL ACQUIRED",
+            description=f"> *« Hey {interaction.user.mention}, your secure uplink is ready. Tap the terminal to access the visual archive. »*\n\n**Operator:** Ember\n**Status:** Online",
+            color=0xff7700
         )
         
+        embed.set_thumbnail(url=interaction.client.user.avatar.url if interaction.client.user.avatar else None)
+        embed.set_footer(text="Endfield Secure Gallery Routing")
+        
+        # Attach the Ember image dynamically
+        img_path = os.path.join(os.path.dirname(__file__), 'public', 'Bot', 'ember-clic-gallery-button.png')
+        file = None
+        if os.path.exists(img_path):
+            file = discord.File(img_path, filename="ember-clic.png")
+            embed.set_image(url="attachment://ember-clic.png")
+        
         view = discord.ui.View()
-        button = discord.ui.Button(label="Open Gallery 🚀", style=discord.ButtonStyle.link, url=gallery_url)
+        # Add custom emoji if desired, or keep default
+        button = discord.ui.Button(label="ACCESS TERMINAL 📥", style=discord.ButtonStyle.link, url=gallery_url)
         view.add_item(button)
         
-        await interaction.followup.send(embed=embed, view=view)
+        if file:
+            await interaction.followup.send(file=file, embed=embed, view=view)
+        else:
+            await interaction.followup.send(embed=embed, view=view)
         
     except Exception as e:
         await interaction.followup.send(f"❌ Error setting up gallery: {e}")

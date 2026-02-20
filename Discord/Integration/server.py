@@ -567,32 +567,28 @@ def publish():
     try:
         data = request.json
         filename = data.get('filename')
-        webhook_url = data.get('webhook_url') # Legacy/Default
-        channel_id = data.get('channel_id')   # New Dynamic Target
+        webhook_url = data.get('webhook_url')
+        channel_id = data.get('channel_id')
         
         if not filename: return jsonify({"error": "Missing filename"}), 400
         if not supabase: return jsonify({"error": "No DB connection"}), 500
         
         public_mp4_url = supabase.storage.from_('mpgifs').get_public_url(filename + '.mp4')
             
-        # 2. Resolve Target URL
         import requests
         target_url = webhook_url
         
         if channel_id:
             print(f"🔎 Resolving Webhook for Channel {channel_id}...")
-            # Get Webhooks
             wh_url = f"https://discord.com/api/v10/channels/{channel_id}/webhooks"
             r_wh = requests.get(wh_url, headers=get_discord_headers())
             webhooks = r_wh.json() if r_wh.status_code == 200 else []
             
-            # Find ours or Create
             found_wh = next((w for w in webhooks if w.get('token')), None)
             
             if found_wh:
                 target_url = f"https://discord.com/api/webhooks/{found_wh['id']}/{found_wh['token']}"
             else:
-                # Create
                 r_create = requests.post(wh_url, headers=get_discord_headers(), json={"name": "MPGIF Proxy"})
                 if r_create.status_code in [200, 201]:
                     new_wh = r_create.json()
@@ -603,7 +599,6 @@ def publish():
 
         print(f"📤 Publishing to: {target_url}")
 
-        # 3. Post Message
         payload = {
             "content": public_mp4_url,
             "username": "MPGIF Proxy"
@@ -620,9 +615,6 @@ def publish():
         print(f"Publish error: {e}")
         return jsonify({"error": str(e)}), 500
 
-# ___ USER & BADGE SYSTEM ___
-
-# Default Badges
 DEFAULT_BADGES = {
     "first_upload": {"name": "First Transmission", "icon": "📡", "desc": "Uploaded 1 MPGIF", "condition": {"type": "upload", "val": 1}},
     "pro_uploader": {"name": "Logistics Officer", "icon": "📦", "desc": "Uploaded 5 MPGIFs", "condition": {"type": "upload", "val": 5}},
@@ -644,7 +636,6 @@ def update_user_stat(user_id, stat, delta=1):
     """Updates a stat (uploads/votes) and checks for badge awards."""
     if not supabase: return []
     try:
-        # Get existing user
         res = supabase.table('users').select('*').eq('id', user_id).execute()
         if not res.data:
             user_data = {"id": user_id, "uploads": 0, "votes": 0, "badges": []}
@@ -654,7 +645,6 @@ def update_user_stat(user_id, stat, delta=1):
             
         user_data[stat] = user_data.get(stat, 0) + delta
         
-        # Check Badges
         my_badges = user_data.get("badges", [])
         new_badges = []
         
@@ -672,7 +662,6 @@ def update_user_stat(user_id, stat, delta=1):
                     my_badges.append(bid)
                     new_badges.append(bdef)
 
-        # Save back
         supabase.table('users').update({
             stat: user_data[stat],
             "badges": my_badges
@@ -682,20 +671,17 @@ def update_user_stat(user_id, stat, delta=1):
     except Exception as e:
         print(f"Update user stat error: {e}")
         return []
-# ___ METADATA SYSTEM (Tags & Dimensions) ___
-# Replaced by Supabase `files` table data.
+
 @app.route('/api/user/<user_id>')
 def get_user_profile(user_id):
     """Returns profile info + fetches Discord Avatar."""
     data = get_user_data(user_id)
     badges_def = DEFAULT_BADGES
     
-    # Enrich badges
     enriched_badges = []
     for bid in data.get("badges", []):
          if bid in badges_def: enriched_badges.append(badges_def[bid])
     
-    # Fetch Discord Avatar
     avatar_url = None
     username = "UNKNOWN"
     is_bot = False
@@ -736,7 +722,6 @@ def create_badge():
     user_id = request.json.get('user_id')
     if not can_manage(user_id): return jsonify({"error": "Admin only"}), 403
     
-    # Format: { id: "slug", name: "Name", icon: "X", desc: "...", condition: {...} }
     badge_data = request.json.get('badge')
     bid = badge_data.get('id')
     
@@ -751,10 +736,8 @@ def update_user_profile():
     user_id = data.get('user_id')
     desc = data.get('description')
     
-    # Update description (sanitize length)
     if desc is not None:
         try:
-            # Upsert user if they don't exist yet just in case
             res = supabase.table('users').select('*').eq('id', user_id).execute()
             if not res.data:
                 supabase.table('users').insert({"id": user_id, "description": desc[:500]}).execute()
@@ -781,7 +764,6 @@ def get_guild_members():
             
         members_data = r.json()
         
-        # Load all users from DB to enhance
         db_users = {}
         if supabase:
             u_res = supabase.table('users').select('*').execute()
@@ -794,7 +776,6 @@ def get_guild_members():
             uid = u['id']
             is_bot = u.get('bot', False)
             
-            # Get our stats
             db_u = db_users.get(uid, {"uploads":0, "votes":0})
             stats = {"uploads": db_u.get("uploads", 0), "votes": db_u.get("votes", 0)}
             
@@ -834,7 +815,7 @@ def favorites():
         data = request.json
         user_id = data.get('user_id')
         filename = data.get('filename')
-        action = data.get('action') # 'add' or 'remove'
+        action = data.get('action')
         
         if not user_id or not filename: return jsonify({"error": "Missing data"}), 400
         
@@ -844,7 +825,6 @@ def favorites():
             elif action == 'remove':
                 supabase.table('favorites').delete().eq('user_id', user_id).eq('filename', filename).execute()
                 
-            # Return updated list
             res = supabase.table('favorites').select('filename').eq('user_id', user_id).execute()
             user_favs = [row['filename'] for row in res.data]
             return jsonify({"status": "ok", "favorites": user_favs})
@@ -882,7 +862,6 @@ def convert_file():
     if not converted_files:
         return jsonify({"error": "No valid files converted"}), 400
         
-    # If multiple files, create a ZIP
     zip_filename = f"Endfield_Conversion_{batch_id}.zip"
     zip_path = os.path.join(BASE_DIR, '.cache', zip_filename)
     
@@ -913,38 +892,33 @@ def download_converted(batch_id, filename):
 
 @app.route('/favicon.ico')
 def favicon():
-    return "", 204 # No content, silence 404
+    return "", 204
 
 # ___ SERVER RUN ___
 if __name__ == '__main__':
-    # Ensure current dir is in path for imports
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     
-    # Load .env
     try:
         from dotenv import load_dotenv
         load_dotenv()
     except ImportError:
         print(" * \033[93mTips: Install 'python-dotenv' to load variables from .env file.\033[0m")
 
-    # Optional: Auto-start ngrok
     try:
         from pyngrok import ngrok, conf
         
-        # Load Auth Token from ENV
         ngrok_token = os.getenv("NGROK_AUTHTOKEN")
         if ngrok_token:
             conf.get_default().auth_token = ngrok_token
             print(" * \033[92mNgrok Auth Token loaded from environment.\033[0m")
         
-        # Open a HTTP tunnel on the default port 5000
         public_url = ngrok.connect(5000).public_url
         print(f" * \033[92mngrok tunnel \"{public_url}\" -> \"http://127.0.0.1:5000\"\033[0m")
         print(f" * Update SERVER_URL in .env or bot.py to: {public_url}")
         
     except ImportError:
         print(" * \033[93mTips: Install 'pyngrok' (pip install pyngrok) to auto-generate a public URL.\033[0m")
-    except Exception as e: # Catch all including ngrok errors
+    except Exception as e:
         if "ERR_NGROK_4018" in str(e):
             print("\n\033[91m❌ NGROK AUTH REQUIRED\033[0m")
             print("To use ngrok, you need a free account.")
@@ -955,5 +929,4 @@ if __name__ == '__main__':
         else:
             print(f" * ngrok error: {e}")
 
-    # Run on port 5000
     app.run(host='0.0.0.0', port=5000)
