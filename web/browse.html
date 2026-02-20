@@ -1348,6 +1348,7 @@
         function getRarityData(dUser) {
             let stars = 4; let color = "var(--rarity-4)"; let label = "OPERATOR";
             if (dUser.is_admin) { stars = 6; color = "var(--rarity-6)"; label = "ADMIN"; }
+            else if (dUser.is_mod) { stars = 5; color = "var(--rarity-5)"; label = "MODERATOR"; }
             else if (dUser.is_bot) { stars = 3; color = "var(--rarity-3)"; label = "SYSTEM BOT"; }
             else if (dUser.stats && dUser.stats.uploads > 5) { stars = 5; color = "var(--rarity-5)"; label = "SENIOR OPP"; }
             return { stars, color, label };
@@ -1552,7 +1553,7 @@
                 const m = await r.json();
                 c.innerHTML = '';
                 m.forEach(u => {
-                    const rty = getRarityData({ is_admin: u.is_admin, is_bot: u.is_bot, stats: u.stats || { uploads: 0 } }); // Real stats from API
+                    const rty = getRarityData({ is_admin: u.is_admin, is_mod: u.is_mod, is_bot: u.is_bot, stats: u.stats || { uploads: 0 } }); // Real stats from API
                     const d = document.createElement('div');
                     d.style.cssText = `background:rgba(0,0,0,0.2); border:1px solid ${rty.color}; box-shadow: 0 0 10px ${rty.color}40; padding:10px; display:flex; gap:10px; cursor:pointer;`;
                     d.onclick = () => openProfile(u.id);

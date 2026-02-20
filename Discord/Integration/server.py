@@ -187,12 +187,15 @@ def get_allowed_ids(env_var):
     ids = os.getenv(env_var, '').split(',')
     return [id.strip() for id in ids if id.strip()]
 
+def is_admin_user(user_id):
+    return str(user_id) in get_allowed_ids('ADMIN_IDS')
+
+def is_mod_user(user_id):
+    return str(user_id) in get_allowed_ids('MOD_IDS')
+
 def can_manage(user_id):
     """Checks if user is Admin OR Moderator."""
-    admins = get_allowed_ids('ADMIN_IDS')
-    mods = get_allowed_ids('MOD_IDS')
-    uid = str(user_id)
-    return (uid in admins) or (uid in mods)
+    return is_admin_user(user_id) or is_mod_user(user_id)
 
 @app.route('/api/check_auth')
 def check_auth():
@@ -742,7 +745,8 @@ def get_user_profile(user_id):
             "votes": data.get("votes", 0)
         },
         "badges": enriched_badges,
-        "is_admin": can_manage(user_id)
+        "is_admin": is_admin_user(user_id),
+        "is_mod": is_mod_user(user_id)
     })
 
 
@@ -814,7 +818,8 @@ def get_guild_members():
                 "global_name": u.get('global_name', u['username']),
                 "avatar": f"https://cdn.discordapp.com/avatars/{uid}/{u['avatar']}.png" if u.get('avatar') else None,
                 "is_bot": is_bot,
-                "is_admin": can_manage(uid),
+                "is_admin": is_admin_user(uid),
+                "is_mod": is_mod_user(uid),
                 "stats": stats
             })
             
