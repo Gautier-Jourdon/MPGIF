@@ -1181,8 +1181,7 @@
     <!-- CONVERTER MODAL -->
     <div class="modal-overlay" id="converterModal">
         <div class="dossier-panel" style="width:400px; max-height: 80vh; overflow-y:auto;">
-            <div class="panel-head"><span>VIDEO CONVERTER</span> <span
-                    onclick="document.getElementById('converterModal').style.display='none'"
+            <div class="panel-head"><span>VIDEO CONVERTER</span> <span onclick="closeConverter()"
                     style="cursor:pointer; color:var(--primary);">[X]</span></div>
             <p style="font-family:var(--tech-font); font-size:0.8rem; color:var(--text-sec); margin-top:0;">Select
                 multiple .mp4 files to batch convert to .mpgif.</p>
@@ -1194,8 +1193,10 @@
             <!-- Conversions list -->
             <div id="cResults"
                 style="margin-top: 20px; border-top: 1px dashed var(--border); padding-top: 15px; display:none;">
-                <div class="panel-head" style="font-size:0.8rem; border:none; margin-bottom:5px;"><span>CONVERSION
-                        LOGS_</span></div>
+                <div class="panel-head" style="font-size:0.8rem; border:none; margin-bottom:5px;">
+                    <span>CONVERSION LOGS_</span>
+                    <span onclick="clearConversions()" style="cursor:pointer; color:#E57373;">[CLEAR]</span>
+                </div>
                 <div id="cLog" style="max-height: 150px; overflow-y:auto; margin-bottom: 10px;"></div>
                 <a id="cZip" href="#" style="text-decoration:none;"><button class="btn"
                         style="width:100%; justify-content:center; border-color:var(--rarity-3); color:var(--rarity-3);">DOWNLOAD
@@ -1221,6 +1222,8 @@
                 <div class="op-tabs-header">
                     <div class="op-top-tab active" onclick="switchTab('file')">📁 Operator File</div>
                     <div class="op-top-tab" onclick="switchTab('personnel')">📁 Personnel Logs</div>
+                    <div class="op-top-tab" onclick="switchTab('settings')" id="settingsTabBtn" style="display:none;">⚙️
+                        Settings</div>
                 </div>
 
                 <div class="op-content-area">
@@ -1285,6 +1288,44 @@
                                 <div id="pFriends"
                                     style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
                                     <!-- Populated via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Settings (Only for self) -->
+                    <div id="tab-settings" class="tp" style="display:none;">
+                        <div class="op-folder">
+                            <div class="op-folder-header">SYS_CONFIG</div>
+                            <div class="op-folder-title">| AVATAR UPSCALER (AI)</div>
+                            <div class="op-folder-body">
+                                <p style="margin-top:0; font-size:0.85rem;">Enhance your Discord profile picture using
+                                    local Neural Networks.<br>This will process locally and swap your display.</p>
+
+                                <div class="tech-grid" style="margin-bottom:15px;">
+                                    <div>
+                                        <strong>AI MODEL:</strong><br>
+                                        <select id="upModel" class="op-input"
+                                            style="min-height:40px; padding:5px 10px; margin-top:5px;">
+                                            <option value="waifu2x">Waifu2x (Fast, Anime)</option>
+                                            <option value="realesrgan">Real-ESRGAN (Slower, High Detail)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <strong>MULTIPLIER:</strong><br>
+                                        <select id="upScale" class="op-input"
+                                            style="min-height:40px; padding:5px 10px; margin-top:5px;">
+                                            <option value="2">2x (Recommended)</option>
+                                            <option value="4">4x (Max)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div style="display:flex; gap:10px;">
+                                    <button class="btn primary" id="btnUpscale" style="flex:1; justify-content:center;"
+                                        onclick="executeUpscale()">ENHANCE AVATAR</button>
+                                    <button class="btn" style="border-color:#E57373; color:#E57373;"
+                                        onclick="revertAvatar()">REVERT</button>
                                 </div>
                             </div>
                         </div>
@@ -1447,7 +1488,32 @@
                 cont.style.setProperty('--op-border-color', rty.color);
                 cont.style.boxShadow = `0 0 40px ${rty.color}80, inset 0 0 60px ${rty.color}40`;
 
-                document.getElementById('pAvatar').src = d.avatar_url || `https://cdn.discordapp.com/embed/avatars/${tid % 5}.png`;
+                const defaultAvatar = d.avatar_url || `https://cdn.discordapp.com/embed/avatars/${tid % 5}.png`;
+                const pAvatar = document.getElementById('pAvatar');
+                pAvatar.src = defaultAvatar;
+
+                // Silently auto-upscale in the background for better presentation
+                if (defaultAvatar) {
+                    baseAvatarUrl = defaultAvatar; // Ensure Revert knows the original URL
+                    fetch('/api/upscale_avatar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: tid,
+                            avatar_url: defaultAvatar,
+                            model: 'waifu2x',
+                            scale: 2
+                        })
+                    }).then(res => res.json()).then(resData => {
+                        if (resData.image_b64) {
+                            // Only swap if we are still viewing the same user profile!
+                            if (document.getElementById('pId').textContent == tid) {
+                                pAvatar.src = resData.image_b64;
+                            }
+                        }
+                    }).catch(err => console.log("Silent auto-upscale failed", err));
+                }
+
                 document.getElementById('pName').textContent = d.username;
                 document.getElementById('pId').textContent = tid;
                 document.getElementById('pCodename').textContent = d.username;
@@ -1468,6 +1534,12 @@
                 document.getElementById('pSave').style.display = 'none';
 
                 if (tid === userId && guildId) loadMembers();
+
+                const settingsBtn = document.getElementById('settingsTabBtn');
+                if (settingsBtn) {
+                    if (tid === userId) settingsBtn.style.display = 'flex';
+                    else settingsBtn.style.display = 'none';
+                }
 
                 switchTab('file');
             } catch (e) { }
@@ -1507,7 +1579,8 @@
             document.getElementById('tab-' + t).style.display = 'block';
             document.querySelectorAll('.op-top-tab').forEach(e => e.classList.remove('active'));
             if (t === 'file') document.querySelectorAll('.op-top-tab')[0].classList.add('active');
-            else document.querySelectorAll('.op-top-tab')[1].classList.add('active');
+            else if (t === 'personnel') document.querySelectorAll('.op-top-tab')[1].classList.add('active');
+            else if (t === 'settings') document.querySelectorAll('.op-top-tab')[2].classList.add('active');
         }
 
         async function vote(n, t) { if (!userId) return showToast("LOGIN REQ"); await fetch(API.vote, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, filename: n, type: t }) }); loadFiles().then(render); }
@@ -1559,7 +1632,19 @@
         async function doUpload() {
             if (pendingUploads.length === 0) return;
             const btn = document.getElementById('doUploadBtn');
-            btn.textContent = "UPLOADING..."; btn.style.pointerEvents = 'none';
+            btn.style.pointerEvents = 'none';
+            document.getElementById('dropZ').textContent = "TRANSMITTING DATA...";
+
+            let totalBytes = pendingUploads.reduce((acc, f) => acc + f.size, 0);
+            let estimatedMaxSec = Math.max(5, Math.ceil((totalBytes / 1048576) * 2));
+            let elapsedSec = 0;
+            const formatT = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+
+            btn.textContent = `UPLOADING... [00:00 / ~${formatT(estimatedMaxSec)} MAX]`;
+            let timerInt = setInterval(() => {
+                elapsedSec++;
+                btn.textContent = `UPLOADING... [${formatT(elapsedSec)} / ~${formatT(estimatedMaxSec)} MAX]`;
+            }, 1000);
             document.getElementById('dropZ').textContent = "TRANSMITTING DATA...";
 
             const nm = document.getElementById('upName').value;
@@ -1585,6 +1670,7 @@
                 }
             }
 
+            clearInterval(timerInt);
             btn.textContent = "INITIATE UPLOAD"; btn.style.pointerEvents = 'auto';
             document.getElementById('dropZ').textContent = "[ DRAG & DROP OR CLICK TO UPLOAD ]";
 
@@ -1603,8 +1689,18 @@
             if (files.length === 0) return;
 
             const btn = document.getElementById('convBtn');
-            btn.textContent = "CONVERTING... PLEASE WAIT";
             btn.style.pointerEvents = 'none';
+
+            let totalBytes = Array.from(files).reduce((acc, f) => acc + f.size, 0);
+            let estimatedMaxSec = Math.max(10, Math.ceil((totalBytes / 1048576) * 8));
+            let elapsedSec = 0;
+            const formatT = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+
+            btn.textContent = `CONVERTING... [00:00 / ~${formatT(estimatedMaxSec)} MAX]`;
+            let timerInt = setInterval(() => {
+                elapsedSec++;
+                btn.textContent = `CONVERTING... [${formatT(elapsedSec)} / ~${formatT(estimatedMaxSec)} MAX]`;
+            }, 1000);
 
             const fd = new FormData();
             for (let i = 0; i < files.length; i++) fd.append('files', files[i]);
@@ -1635,9 +1731,95 @@
             } catch (e) {
                 showToast("CONVERSION FAILED");
             }
+            clearInterval(timerInt);
             btn.textContent = "CONVERT FORMAT";
             btn.style.pointerEvents = 'auto';
         }
+
+        window.clearConversions = () => {
+            document.getElementById('cLog').innerHTML = '';
+            document.getElementById('cResults').style.display = 'none';
+            document.getElementById('cZip').href = '#';
+        };
+
+        window.closeConverter = () => {
+            document.getElementById('converterModal').style.display = 'none';
+            clearConversions();
+        };
+
+        // --- UPSCALER LOGIC ---
+        let baseAvatarUrl = '';
+
+        window.executeUpscale = async () => {
+            const btn = document.getElementById('btnUpscale');
+            const pAvatar = document.getElementById('pAvatar');
+
+            // Save the base avatar purely for reversion purposes if not already saved
+            if (!baseAvatarUrl) baseAvatarUrl = pAvatar.src;
+
+            // Can't upscale base64 again, must use base
+            const targetUrl = baseAvatarUrl;
+
+            const model = document.getElementById('upModel').value;
+            const scale = document.getElementById('upScale').value;
+
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.5';
+
+            // ETA guessing: Waifu2x 2x (~5s), 4x (~15s) | ESRGAN 2x (~15s), 4x (~45s)
+            let estimatedMaxSec = 5;
+            if (model === 'waifu2x' && scale == 4) estimatedMaxSec = 15;
+            if (model === 'realesrgan' && scale == 2) estimatedMaxSec = 15;
+            if (model === 'realesrgan' && scale == 4) estimatedMaxSec = 45;
+
+            let elapsedSec = 0;
+            const formatT = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+
+            btn.textContent = `UPSCALING... [00:00 / ~${formatT(estimatedMaxSec)} MAX]`;
+            let timerInt = setInterval(() => {
+                elapsedSec++;
+                btn.textContent = `UPSCALING... [${formatT(elapsedSec)} / ~${formatT(estimatedMaxSec)} MAX]`;
+            }, 1000);
+
+            try {
+                const req = await fetch('/api/upscale_avatar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        avatar_url: targetUrl,
+                        model: model,
+                        scale: scale
+                    })
+                });
+
+                const res = await req.json();
+
+                if (req.ok && res.image_b64) {
+                    pAvatar.src = res.image_b64;
+                    showToast("AVATAR ENHANCED");
+                } else {
+                    showToast("UPSCALER FAILED: " + (res.error || "Unknown Error"));
+                }
+            } catch (err) {
+                console.error("Upscale attempt failed:", err);
+                showToast("UPSCALER COMMUNICATION ERROR");
+            }
+
+            clearInterval(timerInt);
+            btn.textContent = "ENHANCE AVATAR";
+            btn.style.pointerEvents = 'auto';
+            btn.style.opacity = '1';
+        };
+
+        window.revertAvatar = () => {
+            if (baseAvatarUrl) {
+                document.getElementById('pAvatar').src = baseAvatarUrl;
+                showToast("REVERTED TO BASE RESOLUTION");
+            } else {
+                showToast("ALREADY USING ORIGINAL AVATAR");
+            }
+        };
 
         async function loadChannels() {
             try {

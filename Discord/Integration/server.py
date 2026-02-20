@@ -312,6 +312,9 @@ def upload_file():
     except Exception as e:
         print(f"Upload error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+
 @app.route('/api/vote', methods=['POST'])
 def handle_vote():
     if not supabase: return jsonify({"error": "No DB connection"}), 500
@@ -934,6 +937,28 @@ def favicon():
     return "", 204
 
 # ___ SERVER RUN ___
+@app.route('/api/upscale_avatar', methods=['POST'])
+def upscale_avatar():
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        avatar_url = data.get('avatar_url')
+        model = data.get('model', 'waifu2x')
+        scale = data.get('scale', 2)
+        
+        if not user_id or not avatar_url:
+            return jsonify({"error": "Missing parameters"}), 400
+            
+        sys.path.append(os.path.dirname(BASE_DIR))
+        import upscaler
+        
+        b64_img = upscaler.upscale_image_base64(avatar_url, model, scale)
+        return jsonify({"success": True, "image_b64": b64_img})
+        
+    except Exception as e:
+        print(f"Upscale API error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     
