@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎬 {{TITLE}}</title>
+
+    <!-- Open Graph / Discord Embed -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="MPGIF Player">
+    <meta property="og:title" content="{{TITLE}}">
+    <meta property="og:description" content="Click to watch this MPGIF with sound! 🎶">
+    <meta property="og:image" content="{{IMAGE_URL}}">
+    <meta name="theme-color" content="#5865F2">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #fff;
+            font-family: sans-serif;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+
+        #error {
+            color: #ff5555;
+            display: none;
+            text-align: center;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .play-icon {
+            font-size: 50px;
+            opacity: 0.8;
+        }
+
+        body:hover .overlay {
+            opacity: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="error">File not found or invalid.</div>
+    <div class="overlay">
+        <div class="play-icon">▶</div>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <script src="mpgif_reader.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const errorEl = document.getElementById('error');
+        const overlay = document.querySelector('.overlay');
+
+        // Get file from URL param
+        const urlParams = new URLSearchParams(window.location.search);
+        const fileUrl = urlParams.get('file');
+
+        if (!fileUrl) {
+            errorEl.textContent = "No file specified in URL (?file=...)";
+            errorEl.style.display = 'block';
+            overlay.style.display = 'none';
+        } else {
+            loadMPGIF(fileUrl);
+        }
+
+        async function loadMPGIF(url) {
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const buffer = await resp.arrayBuffer();
+
+                const mpgif = new MPGIFReader(buffer);
+                mpgif.read();
+                initPlayer(mpgif);
+            } catch (e) {
+                console.error(e);
+                errorEl.textContent = "Error loading MPGIF: " + e.message;
+                errorEl.style.display = 'block';
+                overlay.style.display = 'none';
+            }
+        }
+
+        async function initPlayer(mpgif) {
+            // Unpack images
+            const images = await Promise.all(mpgif.frames.map(src => {
+                return new Promise(resolve => {
+                    const img = new Image();
+                    img.src = src;
+                    img.onload = () => resolve(img);
+                });
+            }));
+
+            canvas.width = mpgif.width;
+            canvas.height = mpgif.height;
+
+            // Draw first frame
+            if (images.length > 0) ctx.drawImage(images[0], 0, 0);
+
+            // Audio Setup
+            let audioCtx = null;
+            let audioBuffer = null;
+            let audioSource = null;
+            let gainNode = null;
+
+            if (mpgif.audioData) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                try {
+                    audioBuffer = await audioCtx.decodeAudioData(mpgif.audioData.slice(0));
+                } catch (e) { console.warn("Audio decode failed", e); }
+            }
+
+            // Playback Logic
+            let interval = null;
+            let frameIdx = 0;
+            let isPlaying = false;
+
+            const start = () => {
+                if (isPlaying) return;
+                isPlaying = true;
+
+                // Audio
+                if (audioCtx && audioBuffer) {
+                    if (audioSource) try { audioSource.stop(); } catch (e) { }
+                    audioSource = audioCtx.createBufferSource();
+                    audioSource.buffer = audioBuffer;
+                    audioSource.loop = (mpgif.loopCount === 0);
+
+                    gainNode = audioCtx.createGain();
+                    gainNode.gain.value = 1.0; //Full volume
+
+                    audioSource.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    audioSource.start();
+                }
+
+                // Video
+                interval = setInterval(() => {
+                    frameIdx = (frameIdx + 1) % images.length;
+                    ctx.drawImage(images[frameIdx], 0, 0);
+                }, 1000 / mpgif.fps);
+            };
+
+            const stop = () => {
+                if (!isPlaying) return;
+                isPlaying = false;
+
+                if (interval) clearInterval(interval);
+                interval = null;
+
+                if (audioSource) {
+                    try { audioSource.stop(); } catch (e) { }
+                    audioSource = null;
+                }
+
+                // Reset to first frame
+                frameIdx = 0;
+                ctx.drawImage(images[0], 0, 0);
+            };
+
+            // Interactions
+            // Desktop: Hover
+            document.body.addEventListener('mouseenter', start);
+            document.body.addEventListener('mouseleave', stop);
+
+            // Mobile/Click: Toggle
+            document.body.addEventListener('click', () => {
+                if (isPlaying) stop(); else start();
+            });
+
+            // Auto-play if requested (and allowed by browser policy)
+            if (urlParams.get('autoplay') === '1') {
+                start();
+            }
+        }
+    </script>
+</body>
+
+</html>

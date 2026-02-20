@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Endfield MPGIF Terminal</title>
+    <style>
+        :root {
+            /* Endfield "Wedge" Palette - Intense High Contrast */
+            --primary: #FFD54F;
+            /* Arclight Yellow */
+            --primary-glow: rgba(255, 213, 79, 0.4);
+            --bg: #141419;
+            --surface: #1E1E24;
+            --surface-light: #2B2C33;
+            --text-main: #FFFFFF;
+            --text-sec: #888890;
+            --border: #3A3A45;
+            --modal-bg: rgba(15, 15, 20, 0.95);
+
+            --tech-font: 'Consolas', 'Monaco', monospace;
+            --ui-font: 'Segoe UI', 'Roboto', sans-serif;
+
+            /* Rarity Colors */
+            --rarity-3: #81D4FA;
+            /* Bot */
+            --rarity-4: #CE93D8;
+            /* Normal */
+            --rarity-5: #FFB74D;
+            /* Senior */
+            --rarity-6: #E57373;
+            /* Admin */
+        }
+
+        body.light-theme {
+            --bg: #EAEAEF;
+            --surface: #F4F4F9;
+            --surface-light: #FFFFFF;
+            --text-main: #141419;
+            --text-sec: #555560;
+            --border: #B0B0C0;
+            --modal-bg: rgba(240, 240, 245, 0.95);
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg);
+            /* Wedge Style Pattern - Intense */
+            background-image:
+                repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(255, 255, 255, 0.02) 40px, rgba(255, 255, 255, 0.02) 41px),
+                repeating-linear-gradient(-45deg, transparent, transparent 40px, rgba(255, 255, 255, 0.02) 40px, rgba(255, 255, 255, 0.02) 41px),
+                linear-gradient(180deg, var(--bg) 0%, rgba(20, 20, 25, 0.9) 100%);
+            color: var(--text-main);
+            font-family: var(--ui-font);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* ___ HEADER ___ */
+        header {
+            height: 70px;
+            background: var(--surface);
+            border-bottom: 2px solid var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+            z-index: 100;
+        }
+
+        .brand {
+            font-family: var(--tech-font);
+            font-weight: 800;
+            font-size: 1.6rem;
+            letter-spacing: 2px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand span {
+            color: var(--primary);
+            text-shadow: 0 0 10px var(--primary-glow);
+            font-size: 1.8rem;
+        }
+
+        .search-container {
+            position: relative;
+        }
+
+        .search-bar input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--primary);
+            padding: 10px 15px;
+            color: var(--text-main);
+            font-family: var(--tech-font);
+            width: 300px;
+            transition: all 0.3s;
+        }
+
+        .search-bar input:focus {
+            width: 400px;
+            border-color: var(--primary);
+            outline: none;
+            background: rgba(255, 213, 79, 0.05);
+        }
+
+        .search-bar::before {
+            content: '//';
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            color: var(--primary);
+            font-family: var(--tech-font);
+            font-weight: bold;
+            pointer-events: none;
+        }
+
+        .header-tools {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: var(--tech-font);
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary);
+            transition: width 0.3s;
+        }
+
+        .btn:hover::after {
+            width: 100%;
+        }
+
+        .btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: rgba(255, 213, 79, 0.1);
+        }
+
+        .btn.primary {
+            background: var(--primary);
+            color: #000;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .btn.primary:hover {
+            background: #fff;
+            border-color: #fff;
+            color: #000;
+        }
+
+        /* ___ SERVER PANEL ___ */
+        .server-trigger {
+            position: relative;
+            padding: 0 20px;
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            height: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .server-trigger:hover,
+        .server-trigger.active {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .server-panel {
+            position: absolute;
+            top: 55px;
+            right: -1px;
+            width: 340px;
+            background: var(--surface);
+            border: 1px solid var(--primary);
+            border-top: none;
+            display: none;
+            z-index: 500;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
+        }
+
+        .server-panel.visible {
+            display: block;
+            animation: slideDown 0.2s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .server-banner {
+            height: 120px;
+            background: var(--surface-light);
+            position: relative;
+            background-size: cover;
+            background-position: center;
+            border-bottom: 2px solid var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .server-default-text {
+            font-size: 1.5rem;
+            color: rgba(255, 255, 255, 0.1);
+            font-weight: bold;
+            font-family: var(--tech-font);
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            pointer-events: none;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .server-info-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+            padding: 10px 15px;
+            box-sizing: border-box;
+            color: #fff;
+            font-family: var(--tech-font);
+            font-weight: bold;
+        }
+
+        /* ___ NAV PROFILE ___ */
+        .nav-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            padding: 5px 10px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .nav-profile:hover {
+            border-color: var(--primary);
+            background: rgba(255, 213, 79, 0.05);
+        }
+
+        .nav-avatar-wrapper {
+            width: 42px;
+            height: 42px;
+            position: relative;
+            /* Default rarity color border */
+            border: 2px solid var(--rarity-4);
+            border-radius: 4px;
+            overflow: hidden;
+            transition: border-color 0.3s;
+        }
+
+        .nav-avatar-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* ___ GRID SYSTEM ___ */
+        .wrapper {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 60px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            position: relative;
+        }
+
+        .section-header::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 150px;
+            height: 2px;
+            background: var(--primary);
+        }
+
+        .section-title {
+            font-family: var(--tech-font);
+            font-size: 1.5rem;
+            color: var(--text-sec);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: 1px;
+        }
+
+        .section-title span {
+            color: var(--primary);
+            font-weight: bold;
+            font-size: 1.8rem;
+        }
+
+        .gallery-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        #grid-shorts {
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        }
+
+        #grid-videos {
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        }
+
+        /* ___ INTENSE CARD STYLING ___ */
+        .card {
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.2s ease-out;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 10px;
+            height: 10px;
+            border-top: 2px solid #fff;
+            border-left: 2px solid #fff;
+            z-index: 10;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+
+        .card::after {
+            content: '//';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-family: var(--tech-font);
+            color: var(--primary);
+            font-weight: bold;
+            z-index: 10;
+            opacity: 0;
+            transition: all 0.2s;
+            text-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .card:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+            border-color: var(--primary);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+            border-color: var(--primary);
+        }
+
+        .card:hover::after {
+            opacity: 1;
+            transform: translateX(-5px);
+        }
+
+        .media-box {
+            position: relative;
+            background: #050508;
+            width: 100%;
+            flex-grow: 1;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            cursor: crosshair;
+            /* Indicate clickable to post */
+        }
+
+        .media-box::after {
+            /* Hover hint for posting */
+            content: 'CLICK TO POST';
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            color: var(--primary);
+            font-family: var(--tech-font);
+            font-weight: bold;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+
+        .media-box:hover::after {
+            opacity: 1;
+        }
+
+        #grid-shorts .card {
+            aspect-ratio: 9/16;
+        }
+
+        #grid-videos .card {
+            aspect-ratio: 16/9;
+        }
+
+        .media-box canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .card-body {
+            padding: 12px;
+            background: var(--surface);
+            z-index: 2;
+            border-top: 1px solid var(--border);
+            font-family: var(--tech-font);
+            position: relative;
+        }
+
+        .card-body::before {
+            content: '';
+            position: absolute;
+            bottom: 5px;
+            right: 10px;
+            width: 40px;
+            height: 8px;
+            background: repeating-linear-gradient(90deg, var(--border), var(--border) 2px, transparent 2px, transparent 4px);
+            opacity: 0.5;
+        }
+
+        .card-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .filename {
+            font-size: 0.85rem;
+            color: var(--text-sec);
+            max-width: 140px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            line-height: 2;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-sec);
+            font-size: 1.1rem;
+            padding: 5px;
+            transition: color 0.2s;
+        }
+
+        .icon-btn-vote {
+            font-size: 0.9rem;
+            margin-top: -2px;
+        }
+
+        .icon-btn:hover {
+            color: var(--text-main);
+        }
+
+        .icon-btn.active {
+            color: var(--primary);
+            text-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        /* ___ ENDFIELD OPERATOR FILE MODAL ___ */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            perspective: 1200px;
+            /* For 3D animation */
+        }
+
+        .operator-file {
+            width: 90vw;
+            max-width: 1400px;
+            height: 85vh;
+            display: flex;
+            background: var(--bg);
+            /* Outer File Border uses Javascript to set --op-border-color based on rarity */
+            border: 3px solid var(--op-border-color, var(--rarity-4));
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8), inset 0 0 100px rgba(0, 0, 0, 0.5);
+            position: relative;
+            transform-origin: left center;
+            animation: folderOpen 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        @keyframes folderOpen {
+            from {
+                transform: rotateY(-90deg) translateX(-500px);
+                opacity: 0;
+            }
+
+            to {
+                transform: rotateY(0deg) translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Back Arrow */
+        .op-back {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid var(--border);
+            color: #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            font-size: 1.5rem;
+            transition: all 0.2s;
+        }
+
+        .op-back:hover {
+            background: var(--primary);
+            color: #000;
+            border-color: var(--primary);
+            transform: translateX(-5px);
+        }
+
+        /* Left Side: Avatar Display */
+        .op-left {
+            flex: 1;
+            position: relative;
+            border-right: 2px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.05) 0%, transparent 60%);
+            overflow: hidden;
+        }
+
+        .op-avatar {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            height: 95%;
+            width: 150%;
+            max-width: 900px;
+            object-fit: contain;
+            object-position: bottom center;
+            pointer-events: none;
+            filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.8));
+        }
+
+        .op-name-plate {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            z-index: 10;
+            width: 90%;
+        }
+
+        .op-name {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: -2px;
+            line-height: 1;
+            text-shadow: 0 5px 15px rgba(0, 0, 0, 0.9);
+            font-family: var(--ui-font);
+            word-break: break-all;
+        }
+
+        .op-stars {
+            display: flex;
+            gap: 3px;
+            margin-top: 5px;
+        }
+
+        .op-stars img {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+        }
+
+        /* Right Side: Data Panels */
+        .op-right {
+            width: 55%;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+            position: relative;
+        }
+
+        /* Folded Archive Background overlay */
+        .op-right::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 200px;
+            height: 200px;
+            background-image: repeating-linear-gradient(45deg, var(--border) 0, var(--border) 1px, transparent 1px, transparent 10px);
+            opacity: 0.1;
+            pointer-events: none;
+            clip-path: polygon(100% 100%, 0 100%, 100% 0);
+        }
+
+        /* Top Tabs (Operator File, etc) */
+        .op-tabs-header {
+            display: flex;
+            background: var(--surface-light);
+            border-bottom: 2px solid var(--border);
+        }
+
+        .op-top-tab {
+            padding: 20px 40px;
+            font-family: var(--ui-font);
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--text-sec);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .op-top-tab:hover {
+            color: var(--text-main);
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .op-top-tab.active {
+            background: var(--surface);
+            color: var(--text-main);
+            border-top: 4px solid var(--text-main);
+        }
+
+        .op-content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Folder Style Panels */
+        .op-folder {
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Top "Tab" of the folder */
+        .op-folder-header {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 5px 15px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            font-family: var(--tech-font);
+            font-size: 0.75rem;
+            color: var(--text-sec);
+        }
+
+        .op-folder-header::before {
+            content: '📁';
+            margin-right: 10px;
+            font-size: 1rem;
+            opacity: 0.7;
+        }
+
+        .op-folder-title {
+            padding: 15px 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--text-main);
+            border-left: 4px solid var(--primary);
+            /* Accent line */
+            display: flex;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            font-family: var(--ui-font);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .op-folder-body {
+            padding: 20px;
+            font-family: var(--ui-font);
+            color: var(--text-sec);
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .op-folder-body strong {
+            color: var(--text-main);
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        textarea.op-input {
+            width: 100%;
+            min-height: 100px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            font-family: var(--ui-font);
+            padding: 15px;
+            resize: vertical;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
+        textarea.op-input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        /* General Modals (Upload, Converter) */
+        .dossier-panel {
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-top: 4px solid var(--primary);
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+        }
+
+        .panel-head {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            font-family: var(--tech-font);
+            color: var(--text-sec);
+            font-weight: bold;
+        }
+
+        /* Converter Results */
+        .c-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            margin-bottom: 5px;
+            border: 1px solid var(--border);
+        }
+
+        .c-item span {
+            font-family: var(--tech-font);
+            font-size: 0.85rem;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            max-width: 250px;
+        }
+
+        .toast {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface);
+            border: 1px solid var(--primary);
+            padding: 10px 30px;
+            display: none;
+            z-index: 2000;
+            font-family: var(--tech-font);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-deco"></div>
+
+    <header>
+        <div class="header-tools">
+            <div class="brand"><span>//</span> END-G</div>
+            <div class="search-container">
+                <input type="text" class="search-bar" id="searchInput" placeholder="SEARCH_DATABASE...">
+            </div>
+        </div>
+
+        <div class="header-tools">
+            <button class="btn" id="converterBtn"
+                onclick="document.getElementById('converterModal').style.display='flex'"><i>↺</i> CONVERT</button>
+            <button class="btn" onclick="toggleFavs()" id="favBtn"><i>★</i> FAVS</button>
+            <button class="btn" onclick="toggleTheme()" id="themeBtn"><i>☀</i></button>
+            <button class="btn primary" id="uploadBtn"
+                onclick="document.getElementById('uploadModal').style.display='flex'"><i>+</i> UPLOAD</button>
+
+            <!-- Server Panel Trigger -->
+            <div class="server-trigger" id="serverTrigger" onclick="toggleServerPanel()">
+                <div style="font-size:0.7rem; color:var(--text-sec); letter-spacing:1px; text-align:right;">LINK</div>
+                <div style="font-weight:bold; color:var(--primary); font-family:var(--tech-font); text-align:right;"
+                    id="serverName">OFFLINE</div>
+
+                <div class="server-panel" id="serverPanel" onclick="event.stopPropagation()">
+                    <div class="server-banner" id="serverBanner">
+                        <div class="server-default-text">ENDFIELD<br><span
+                                style="font-size:0.8rem; color:var(--primary);">INDUSTRIES</span></div>
+                        <div class="server-info-overlay" id="serverBannerName">DISCONNECTED</div>
+                    </div>
+                    <div style="padding:15px; color:var(--text-sec); font-size:0.8rem; font-family:var(--tech-font);">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                            <span>ACTIVE PERSONNEL:</span>
+                            <span style="color:var(--text-main); font-weight:bold;" id="serverMembers">UNKNOWN</span>
+                        </div>
+                        <div style="margin-bottom:5px;">CHANNEL_FREQUENCY:</div>
+                        <select id="channelSelect"
+                            style="width:100%; background:rgba(0,0,0,0.5); color:var(--text-main); border:1px solid var(--border); padding:8px; font-family:var(--tech-font);">
+                            <option>LOADING...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navbar Profile -->
+            <div class="nav-profile" onclick="openProfile(userId)">
+                <div style="text-align:right;">
+                    <div id="navUser" style="font-weight:bold; font-size:0.9rem;">GUEST</div>
+                    <div id="navId" style="font-size:0.75rem; color:var(--text-sec);">ID: -</div>
+                </div>
+                <div class="nav-avatar-wrapper" id="navAvatarWrapper">
+                    <img id="navAvatar" src="https://cdn.discordapp.com/embed/avatars/0.png">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="wrapper">
+        <div id="s-shorts">
+            <div class="section-header">
+                <h2 class="section-title"><span>//</span> SHORTS</h2>
+            </div>
+            <div class="gallery-grid" id="grid-shorts"></div>
+        </div>
+        <div id="s-videos">
+            <div class="section-header">
+                <h2 class="section-title"><span>//</span> VIDEOS</h2>
+            </div>
+            <div class="gallery-grid" id="grid-videos"></div>
+        </div>
+    </div>
+
+    <div id="toast">SYSTEM ALERT</div>
+
+    <!-- UPLOAD MODAL -->
+    <div class="modal-overlay" id="uploadModal">
+        <div class="dossier-panel" style="width:400px; max-height:80vh; overflow-y:auto;">
+            <div class="panel-head"><span>UPLOAD PROTOCOL</span> <span
+                    onclick="document.getElementById('uploadModal').style.display='none'"
+                    style="cursor:pointer; color:var(--primary);">[X]</span></div>
+            <div style="border:2px dashed var(--border); padding:40px 20px; text-align:center; margin-bottom:20px; cursor:pointer; background:rgba(0,0,0,0.2); font-family:var(--tech-font); color:var(--text-sec);"
+                onclick="document.getElementById('fIn').click()" id="dropZ">
+                [ DRAG & DROP OR CLICK TO UPLOAD ]
+            </div>
+            <input type="file" id="fIn" hidden accept=".mpgif" multiple onchange="handleFileSelect(event)">
+
+            <div id="uploadList" style="margin-bottom: 20px; display: none;">
+                <div class="panel-head" style="font-size:0.8rem; border:none; margin-bottom:5px;"><span>SELECTED
+                        FILES_</span></div>
+                <div id="uploadFilesCont" style="max-height: 150px; overflow-y:auto; margin-bottom: 10px;"></div>
+            </div>
+
+            <input type="text" id="upName" placeholder="CODENAME (OPTIONAL, APPLIES TO 1ST)..."
+                style="width:100%; background:rgba(0,0,0,0.3); border:1px solid var(--border); color:var(--text-main); padding:10px; margin-bottom:15px; font-family:var(--tech-font); box-sizing:border-box;">
+            <button class="btn primary" id="doUploadBtn" style="width:100%; justify-content:center; display:none;"
+                onclick="doUpload()">INITIATE UPLOAD</button>
+        </div>
+    </div>
+
+    <!-- CONVERTER MODAL -->
+    <div class="modal-overlay" id="converterModal">
+        <div class="dossier-panel" style="width:400px; max-height: 80vh; overflow-y:auto;">
+            <div class="panel-head"><span>VIDEO CONVERTER</span> <span
+                    onclick="document.getElementById('converterModal').style.display='none'"
+                    style="cursor:pointer; color:var(--primary);">[X]</span></div>
+            <p style="font-family:var(--tech-font); font-size:0.8rem; color:var(--text-sec); margin-top:0;">Select
+                multiple .mp4 files to batch convert to .mpgif.</p>
+            <input type="file" id="cIn" multiple accept=".mp4,.gif"
+                style="margin-bottom:20px; width:100%; color:var(--text-main); font-family:var(--ui-font);">
+            <button class="btn primary" id="convBtn" style="width:100%; justify-content:center;"
+                onclick="doConvert()">CONVERT FORMAT</button>
+
+            <!-- Conversions list -->
+            <div id="cResults"
+                style="margin-top: 20px; border-top: 1px dashed var(--border); padding-top: 15px; display:none;">
+                <div class="panel-head" style="font-size:0.8rem; border:none; margin-bottom:5px;"><span>CONVERSION
+                        LOGS_</span></div>
+                <div id="cLog" style="max-height: 150px; overflow-y:auto; margin-bottom: 10px;"></div>
+                <a id="cZip" href="#" style="text-decoration:none;"><button class="btn"
+                        style="width:100%; justify-content:center; border-color:var(--rarity-3); color:var(--rarity-3);">DOWNLOAD
+                        ALL (.ZIP)</button></a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ENDFIELD OPERATOR FILE MODAL -->
+    <div class="modal-overlay" id="profileModal">
+        <div class="operator-file" id="opFileCont">
+            <div class="op-back" onclick="document.getElementById('profileModal').style.display='none'">&#8592;</div>
+
+            <div class="op-left">
+                <img id="pAvatar" class="op-avatar" src="">
+                <div class="op-name-plate">
+                    <div class="op-name" id="pName">USERNAME</div>
+                    <div class="op-stars" id="pStars"></div>
+                </div>
+            </div>
+
+            <div class="op-right">
+                <div class="op-tabs-header">
+                    <div class="op-top-tab active" onclick="switchTab('file')">📁 Operator File</div>
+                    <div class="op-top-tab" onclick="switchTab('personnel')">📁 Personnel Logs</div>
+                </div>
+
+                <div class="op-content-area">
+                    <!-- Tab: File Info -->
+                    <div id="tab-file" class="tp active">
+                        <!-- Basic Info Folder -->
+                        <div class="op-folder">
+                            <div class="op-folder-header" id="pHexId">10_000000</div>
+                            <div class="op-folder-title">| BASIC INFO</div>
+                            <div class="op-folder-body">
+                                <div class="tech-grid">
+                                    <div><strong>CODENAME:</strong> <span id="pCodename">Endministrator</span></div>
+                                    <div><strong>CLEARANCE:</strong> <span id="pClearance">Lvl 1</span></div>
+                                    <div><strong>AFFILIATION:</strong> Endfield Industries</div>
+                                    <div><strong>ID HASH:</strong> <span id="pId">0000</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- HR Summary Folder -->
+                        <div class="op-folder" style="margin-top: 20px;">
+                            <div class="op-folder-header">HR_EVAL_012</div>
+                            <div class="op-folder-title">| HUMAN RESOURCES SUMMARY</div>
+                            <div class="op-folder-body" style="padding:0;">
+                                <textarea id="pDesc" class="op-input" style="border:none; margin:0;"
+                                    placeholder="No records found in database."></textarea>
+                                <div style="padding: 10px 20px; background: rgba(0,0,0,0.2);">
+                                    <button id="pSave" class="btn primary" style="display:none;"
+                                        onclick="saveDesc()">UPDATE RECORD</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Performance Logs -->
+                        <div class="op-folder" style="margin-top: 20px;">
+                            <div class="op-folder-header">SYS_PERF_METRICS</div>
+                            <div class="op-folder-title">| ABILITY ASSESSMENT</div>
+                            <div class="op-folder-body"
+                                style="display: flex; justify-content: space-around; text-align: center;">
+                                <div>
+                                    <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary);" id="pUp">0
+                                    </div>
+                                    <div style="font-family: var(--tech-font); font-size: 0.8rem;">TRANSMISSION UPLOADS
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary);"
+                                        id="pVote">0</div>
+                                    <div style="font-family: var(--tech-font); font-size: 0.8rem;">COMBAT REPUTATION
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Personnel -->
+                    <div id="tab-personnel" class="tp" style="display:none;">
+                        <div class="op-folder">
+                            <div class="op-folder-header">MUTUAL_PERSONNEL</div>
+                            <div class="op-folder-title">| COOPERATION DIRECTORY</div>
+                            <div class="op-folder-body">
+                                <div id="pFriends"
+                                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
+                                    <!-- Populated via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Scripts -->
+    <script src="mpgif_reader.js"></script>
+    <script src="mpgif_player.js"></script>
+    <script>
+        const API = { files: '/api/files', vote: '/api/vote', favorites: '/api/favorites', upload: '/api/upload', delete: '/api/delete', publish: '/api/publish', user: '/api/user', members: '/api/members', guild: '/api/guild/info', update_user: '/api/user/update', channels: '/api/channels', convert: '/api/convert' };
+        let state = { files: [], favorites: [], filter: false, currentPlayer: null, canManage: false };
+        const p = new URLSearchParams(window.location.search);
+        const userId = p.get('uid'); const username = p.get('user') || 'GUEST'; const guildId = p.get('gid');
+
+        // Helper: Get Rarity Color Hex and Stars based on stats
+        function getRarityData(dUser) {
+            let stars = 4; let color = "var(--rarity-4)"; let label = "OPERATOR";
+            if (dUser.is_admin) { stars = 6; color = "var(--rarity-6)"; label = "ADMIN"; }
+            else if (dUser.is_bot) { stars = 3; color = "var(--rarity-3)"; label = "SYSTEM BOT"; }
+            else if (dUser.stats && dUser.stats.uploads > 5) { stars = 5; color = "var(--rarity-5)"; label = "SENIOR OPP"; }
+            return { stars, color, label };
+        }
+
+        async function init() {
+            document.getElementById('navUser').textContent = username;
+            document.getElementById('navId').textContent = "ID: " + (userId ? userId.substring(0, 6) : "000");
+
+            if (userId) {
+                try {
+                    const rUser = await fetch(`/api/user/${userId}`);
+                    if (rUser.ok) {
+                        const dUser = await rUser.json();
+                        document.getElementById('navAvatar').src = dUser.avatar_url || `https://cdn.discordapp.com/embed/avatars/${userId % 5}.png`;
+                        state.canManage = dUser.is_admin;
+
+                        // Apply Rarity Border to Navbar Avatar
+                        const r = getRarityData(dUser);
+                        document.getElementById('navAvatarWrapper').style.borderColor = r.color;
+                        document.getElementById('navAvatarWrapper').style.boxShadow = `0 0 15px ${r.color}`;
+                    }
+                } catch (e) { }
+            }
+
+            // Server Info Request
+            if (guildId) {
+                try {
+                    const r = await fetch(API.guild + '?guild_id=' + guildId);
+                    if (r.ok) {
+                        const g = await r.json();
+                        if (!g.error) {
+                            document.getElementById('serverName').textContent = g.name.toUpperCase();
+                            document.getElementById('serverBannerName').textContent = g.name.toUpperCase();
+                            if (g.member_count) { document.getElementById('serverMembers').textContent = g.member_count; }
+                            if (g.icon) {
+                                document.getElementById('serverBanner').style.backgroundImage = `linear-gradient(45deg, rgba(255,213,79,0.2), transparent), url(${g.icon})`;
+                                document.querySelector('.server-default-text').style.display = 'none';
+                            }
+                        }
+                    }
+                } catch (e) { }
+                loadChannels();
+            }
+
+            await loadFiles();
+            render();
+            document.getElementById('searchInput').addEventListener('input', (e) => render(e.target.value));
+            document.getElementById('pDesc').addEventListener('input', () => document.getElementById('pSave').style.display = 'block');
+        }
+
+        async function loadFiles() {
+            try { const r = await fetch(API.files); state.files = await r.json(); } catch (e) { }
+            if (userId) { try { const rf = await fetch(`${API.favorites}?user_id=${userId}`); const d = await rf.json(); state.favorites = d.favorites || []; } catch (e) { } }
+        }
+
+        function render(search = '') {
+            const sh = document.getElementById('grid-shorts'); const vi = document.getElementById('grid-videos');
+            sh.innerHTML = ''; vi.innerHTML = '';
+            let list = state.files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
+            if (state.filter) list = list.filter(f => state.favorites.includes(f.name));
+
+            list.forEach(f => {
+                const isShort = f.height > f.width; const card = document.createElement('div'); card.className = 'card';
+                if (isShort) sh.appendChild(card); else vi.appendChild(card);
+                const isFav = state.favorites.includes(f.name);
+
+                card.innerHTML = `
+                 <!-- Canvas acting as publish trigger -->
+                 <div class="media-box" onclick="publish('${f.name}')" title="Click to Post"></div>
+                 
+                 <div class="card-body">
+                     <div class="card-actions">
+                         <div class="filename" title="${f.name}">${f.name}</div>
+                     </div>
+                     <div class="card-actions" style="margin-top:10px;">
+                         <div style="display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.3); border-radius:15px; padding:2px 5px;">
+                             <button class="icon-btn icon-btn-vote" onclick="vote('${f.name}','down')">▼</button>
+                             <span style="font-weight:bold; font-size:0.8rem; margin:auto;">${f.score || 0}</span>
+                             <button class="icon-btn icon-btn-vote" onclick="vote('${f.name}','up')">▲</button>
+                         </div>
+                         <div style="display:flex; gap:10px;">
+                            ${state.canManage ? `<button class="icon-btn" style="color:#E57373;" onclick="del('${f.name}')">🗑</button>` : ''}
+                            <button class="icon-btn ${isFav ? 'active' : ''}" onclick="fav('${f.name}')">★</button>
+                         </div>
+                     </div>
+                 </div>`;
+
+                const box = card.querySelector('.media-box');
+                const cvs = document.createElement('canvas'); box.appendChild(cvs);
+                const pl = new MPGIFPlayer(cvs);
+
+                box.onmouseenter = () => {
+                    if (state.currentPlayer && state.currentPlayer !== pl) state.currentPlayer.stop();
+                    state.currentPlayer = pl;
+                    pl.load(`/files/${f.name}`).then(() => { pl.play().catch(e => { }); });
+                };
+                box.onmouseleave = () => { pl.stop(); if (state.currentPlayer === pl) state.currentPlayer = null; };
+                pl.load(`/files/${f.name}`);
+            });
+        }
+
+        window.openProfile = async (tid) => {
+            if (!tid) return;
+
+            const cont = document.getElementById('opFileCont');
+            // Re-trigger animation
+            cont.style.animation = 'none';
+            cont.offsetHeight; /* trigger reflow */
+            cont.style.animation = null;
+
+            document.getElementById('profileModal').style.display = 'flex';
+
+            try {
+                const r = await fetch(`/api/user/${tid}`);
+                const d = await r.json();
+
+                const rty = getRarityData(d);
+                cont.style.setProperty('--op-border-color', rty.color);
+                cont.style.boxShadow = `0 0 40px ${rty.color}80, inset 0 0 60px ${rty.color}40`;
+
+                document.getElementById('pAvatar').src = d.avatar_url || `https://cdn.discordapp.com/embed/avatars/${tid % 5}.png`;
+                document.getElementById('pName').textContent = d.username;
+                document.getElementById('pId').textContent = tid;
+                document.getElementById('pCodename').textContent = d.username;
+
+                // Hex ID fake gen based on ID
+                document.getElementById('pHexId').textContent = "OP_" + tid.substring(0, 6);
+
+                const s = document.getElementById('pStars'); s.innerHTML = '';
+                for (let i = 0; i < rty.stars; i++) { const im = document.createElement('img'); im.src = 'stars.png'; s.appendChild(im); }
+
+                document.getElementById('pClearance').textContent = rty.label;
+                document.getElementById('pUp').textContent = d.stats.uploads || 0;
+                document.getElementById('pVote').textContent = d.stats.votes || 0;
+
+                const descBox = document.getElementById('pDesc');
+                descBox.value = d.description || "";
+                descBox.readOnly = (tid !== userId);
+                document.getElementById('pSave').style.display = 'none';
+
+                if (tid === userId && guildId) loadMembers();
+
+                switchTab('file');
+            } catch (e) { }
+        }
+
+        async function loadMembers() {
+            const c = document.getElementById('pFriends'); c.innerHTML = 'Accessing Personnel DB...';
+            try {
+                const r = await fetch(`api/members?guild_id=${guildId}`);
+                const m = await r.json();
+                c.innerHTML = '';
+                m.forEach(u => {
+                    const rty = getRarityData({ is_admin: u.is_admin, is_bot: u.is_bot, stats: u.stats || { uploads: 0 } }); // Real stats from API
+                    const d = document.createElement('div');
+                    d.style.cssText = `background:rgba(0,0,0,0.2); border:1px solid ${rty.color}; box-shadow: 0 0 10px ${rty.color}40; padding:10px; display:flex; gap:10px; cursor:pointer;`;
+                    d.onclick = () => openProfile(u.id);
+                    d.innerHTML = `<img src="${u.avatar || `https://cdn.discordapp.com/embed/avatars/${u.id % 5}.png`}" style="width:35px; height:35px; border-radius:4px; object-fit:cover;"><div><div style="font-weight:bold; font-size:0.85rem; color:#fff;">${u.global_name || u.username}</div><div style="font-size:0.7rem; color:var(--text-sec); font-family:var(--tech-font);">${rty.label}</div></div>`;
+                    c.appendChild(d);
+                });
+            } catch { c.innerHTML = 'Error retrieving personnel.'; }
+        }
+
+        window.saveDesc = async () => {
+            const txt = document.getElementById('pDesc').value;
+            try {
+                await fetch(API.update_user, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, description: txt }) });
+                document.getElementById('pSave').style.display = 'none';
+                showToast("ARCHIVE RECORD UPDATED");
+            } catch (e) { showToast("UPDATE FAILED"); }
+        }
+
+        window.toggleServerPanel = () => { document.getElementById('serverPanel').classList.toggle('visible'); document.getElementById('serverTrigger').classList.toggle('active'); }
+        window.toggleTheme = () => { document.body.classList.toggle('light-theme'); }
+        window.toggleFavs = () => { state.filter = !state.filter; render(); document.getElementById('favBtn').classList.toggle('primary'); }
+        window.switchTab = (t) => {
+            document.querySelectorAll('.tp').forEach(e => e.style.display = 'none');
+            document.getElementById('tab-' + t).style.display = 'block';
+            document.querySelectorAll('.op-top-tab').forEach(e => e.classList.remove('active'));
+            if (t === 'file') document.querySelectorAll('.op-top-tab')[0].classList.add('active');
+            else document.querySelectorAll('.op-top-tab')[1].classList.add('active');
+        }
+
+        async function vote(n, t) { if (!userId) return showToast("LOGIN REQ"); await fetch(API.vote, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, filename: n, type: t }) }); loadFiles().then(render); }
+        async function fav(n) { if (!userId) return showToast("LOGIN REQ"); const r = await fetch(API.favorites, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, filename: n, action: state.favorites.includes(n) ? 'remove' : 'add' }) }); if (r.ok) { const d = await r.json(); state.favorites = d.favorites; render(); } }
+        async function del(n) { if (!userId || !state.canManage) return; if (confirm("DELETE PURGE: " + n + "?")) { await fetch(API.delete, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: n, user_id: userId }) }); loadFiles().then(render); } }
+        async function publish(f) { if (!userId) return showToast("LOGIN REQ"); showToast("TRANSMITTING..."); await fetch(API.publish, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: f, channel_id: document.getElementById('channelSelect').value, user_id: userId }) }); showToast("TRANSMISSION CLEAR"); }
+        let pendingUploads = [];
+
+        window.handleFileSelect = (e) => {
+            const files = e.target.files;
+            for (let i = 0; i < files.length; i++) {
+                if (!pendingUploads.some(f => f.name === files[i].name && f.size === files[i].size)) {
+                    pendingUploads.push(files[i]);
+                }
+            }
+            renderUploadList();
+            e.target.value = '';
+        }
+
+        window.removeUpload = (idx) => {
+            pendingUploads.splice(idx, 1);
+            renderUploadList();
+        }
+
+        function renderUploadList() {
+            const listCont = document.getElementById('uploadList');
+            const filesCont = document.getElementById('uploadFilesCont');
+            const btn = document.getElementById('doUploadBtn');
+            const drop = document.getElementById('dropZ');
+
+            filesCont.innerHTML = '';
+            if (pendingUploads.length > 0) {
+                listCont.style.display = 'block';
+                btn.style.display = 'flex';
+                drop.innerHTML = `[ ${pendingUploads.length} FILE(S) SELECTED - ADD MORE? ]`;
+                pendingUploads.forEach((f, idx) => {
+                    const item = document.createElement('div'); item.className = 'c-item';
+                    item.innerHTML = `<span><span style="color:var(--primary);">FILE:</span> ${f.name}</span> 
+                        <button class="post-btn-small" style="padding:2px 8px; color:#E57373; border-color:#E57373;" onclick="removeUpload(${idx})">X</button>`;
+                    filesCont.appendChild(item);
+                });
+            } else {
+                listCont.style.display = 'none';
+                btn.style.display = 'none';
+                drop.innerHTML = '[ DRAG & DROP OR CLICK TO UPLOAD ]';
+            }
+        }
+
+        async function doUpload() {
+            if (pendingUploads.length === 0) return;
+            const btn = document.getElementById('doUploadBtn');
+            btn.textContent = "UPLOADING..."; btn.style.pointerEvents = 'none';
+            document.getElementById('dropZ').textContent = "TRANSMITTING DATA...";
+
+            const nm = document.getElementById('upName').value;
+
+            for (let i = 0; i < pendingUploads.length; i++) {
+                const fd = new FormData();
+                fd.append('file', pendingUploads[i]);
+                fd.append('user_id', userId);
+                // Only apply custom name if it's a single file upload to avoid overwriting files
+                if (nm && pendingUploads.length === 1) fd.append('custom_name', nm);
+
+                try {
+                    await fetch(API.upload, { method: 'POST', body: fd });
+                } catch (e) {
+                    console.error("Failed to upload " + pendingUploads[i].name, e);
+                }
+            }
+
+            document.getElementById('uploadModal').style.display = 'none';
+            document.getElementById('dropZ').textContent = "[ DRAG & DROP OR CLICK TO UPLOAD ]";
+            btn.textContent = "INITIATE UPLOAD"; btn.style.pointerEvents = 'auto';
+            document.getElementById('upName').value = '';
+
+            pendingUploads = [];
+            renderUploadList();
+
+            showToast("FILES UPLOADED");
+            loadFiles().then(render);
+        }
+        async function doConvert() {
+            const input = document.getElementById('cIn');
+            const files = input.files;
+            if (files.length === 0) return;
+
+            const btn = document.getElementById('convBtn');
+            btn.textContent = "CONVERTING... PLEASE WAIT";
+            btn.style.pointerEvents = 'none';
+
+            const fd = new FormData();
+            for (let i = 0; i < files.length; i++) fd.append('files', files[i]);
+
+            try {
+                const r = await fetch(API.convert, { method: 'POST', body: fd });
+                const d = await r.json();
+
+                if (r.ok) {
+                    const cRes = document.getElementById('cResults');
+                    const cLog = document.getElementById('cLog');
+                    cLog.innerHTML = '';
+
+                    d.files.forEach(f => {
+                        const item = document.createElement('div'); item.className = 'c-item';
+                        item.innerHTML = `<span><span style="color:var(--primary);">FILE:</span> ${f}</span> 
+                            <a href="/api/download_converted/${d.batch_id}/${f}">
+                            <button class="post-btn-small" style="padding:2px 8px;">DL</button></a>`;
+                        cLog.appendChild(item);
+                    });
+
+                    document.getElementById('cZip').href = d.zip_url;
+                    cRes.style.display = 'block';
+                    showToast("CONVERSION COMPLETE");
+                } else {
+                    showToast("ERROR: " + d.error);
+                }
+            } catch (e) {
+                showToast("CONVERSION FAILED");
+            }
+            btn.textContent = "CONVERT FORMAT";
+            btn.style.pointerEvents = 'auto';
+        }
+
+        async function loadChannels() {
+            try {
+                const r = await fetch(API.channels + `?guild_id=${guildId}`);
+                const d = await r.json();
+                const s = document.getElementById('channelSelect');
+                s.innerHTML = '';
+                if (!d || d.length === 0) { s.innerHTML = '<option>NO CHANNELS</option>'; return; }
+                d.forEach(x => {
+                    const o = document.createElement('option'); o.value = x.id; o.textContent = '#' + x.name; s.appendChild(o);
+                });
+            } catch (e) {
+                document.getElementById('channelSelect').innerHTML = '<option>ERROR</option>';
+            }
+        }
+        function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2000); }
+
+        window.onclick = (e) => {
+            if (!e.target.closest('.server-trigger')) {
+                const p = document.getElementById('serverPanel');
+                if (p) p.classList.remove('visible');
+                const t = document.getElementById('serverTrigger');
+                if (t) t.classList.remove('active');
+            }
+        };
+        init();
+    </script>
+</body>
+
+</html>

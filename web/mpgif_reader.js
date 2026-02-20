@@ -26,7 +26,7 @@ class MPGIFReader {
         this.frameCount = this.data.getUint32(this.offset, false); this.offset += 4;
         this.loopCount = this.data.getUint8(this.offset++);
 
-        console.log(`Parsed Header (v${version}): ${this.width}x${this.height} @ ${this.fps}fps, ${this.frameCount} frames`);
+        // console.log(`Parsed Header (v${version}): ${this.width}x${this.height} @ ${this.fps}fps, ${this.frameCount} frames`);
 
         for (let i = 0; i < this.frameCount; i++) {
             const frameLen = this.data.getUint32(this.offset, false); this.offset += 4;
@@ -44,7 +44,7 @@ class MPGIFReader {
             if (audioLen > 0) {
                 this.audioData = this.data.buffer.slice(this.offset, this.offset + audioLen);
                 this.offset += audioLen;
-                console.log(`Parsed Audio: ${audioLen} bytes, Codec: ${this.audioCodec}`);
+                // console.log(`Parsed Audio: ${audioLen} bytes, Codec: ${this.audioCodec}`);
             }
         }
 
@@ -56,7 +56,7 @@ class MPGIFReader {
                     const metaBytes = new Uint8Array(this.data.buffer, this.offset, metaLen);
                     const metaStr = new TextDecoder("utf-8").decode(metaBytes);
                     this.metadata = JSON.parse(metaStr);
-                    console.log("Parsed Metadata:", this.metadata);
+                    // console.log("Parsed Metadata:", this.metadata);
                 }
             } catch (e) {
                 console.warn("Error parsing metadata:", e);

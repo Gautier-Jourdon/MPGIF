@@ -1,0 +1,37 @@
+{
+    "first_upload": {
+        "name": "First Transmission",
+        "icon": "\ud83d\udce1",
+        "desc": "Uploaded 1 MPGIF",
+        "condition": {
+            "type": "upload",
+            "val": 1
+        }
+    },
+    "pro_uploader": {
+        "name": "Logistics Officer",
+        "icon": "\ud83d\udce6",
+        "desc": "Uploaded 5 MPGIFs",
+        "condition": {
+            "type": "upload",
+            "val": 5
+        }
+    },
+    "critic": {
+        "name": "Analyst",
+        "icon": "\ud83e\uddd0",
+        "desc": "Voted 10 times",
+        "condition": {
+            "type": "vote",
+            "val": 10
+        }
+    },
+    "verified": {
+        "name": "Verified Operator",
+        "icon": "\ud83d\udca0",
+        "desc": "Official Endfield Operator",
+        "condition": {
+            "type": "manual"
+        }
+    }
+}
