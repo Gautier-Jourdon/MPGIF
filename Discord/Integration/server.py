@@ -75,6 +75,8 @@ def serve_js(filename):
 
 from flask import redirect
 
+PUBLIC_DIR = os.path.join(BASE_DIR, 'public')
+
 @app.route('/files/<path:filename>')
 def get_file(filename):
     if not supabase: return "No DB connection", 500
@@ -84,6 +86,10 @@ def get_file(filename):
 @app.route('/<path:filename>')
 def serve_static(filename):
     return send_from_directory(WEB_DIR, filename)
+
+@app.route('/chibi/<path:filename>')
+def serve_chibi(filename):
+    return send_from_directory(os.path.join(PUBLIC_DIR, 'chibi'), filename)
 
 @app.route('/api/thumbnail/<path:filename>')
 def get_thumbnail(filename):
