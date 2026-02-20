@@ -91,6 +91,10 @@ def serve_static(filename):
 def serve_chibi(filename):
     return send_from_directory(os.path.join(PUBLIC_DIR, 'chibi'), filename)
 
+@app.route('/public/<path:filename>')
+def serve_public(filename):
+    return send_from_directory(PUBLIC_DIR, filename)
+
 @app.route('/api/thumbnail/<path:filename>')
 def get_thumbnail(filename):
     """Serves the thumbnail extracted during upload via Supabase public url."""
@@ -238,7 +242,6 @@ def upload_file():
             width, height = 0, 0
             
             try:
-                sys.path.append(os.path.dirname(BASE_DIR)) 
                 from fichier.mpgif_structure import MPGIFReader
                 reader = MPGIFReader(temp_path)
                 reader.read()
@@ -286,7 +289,7 @@ def upload_file():
             except Exception as ex: 
                 print(f"Validation failed (Not a valid MPGIF): {ex}")
                 if os.path.exists(temp_path): os.remove(temp_path)
-                return jsonify({"error": "Fichier corrompu ou fausse extension. Veuillez utiliser le Convertisseur."}), 400
+                return jsonify({"error": f"Fichier corrompu ou fausse extension. Veuillez utiliser le Convertisseur. D\u00e9tail: {ex}"}), 400
             
             finally:
                 if os.path.exists(temp_path): os.remove(temp_path)
@@ -623,8 +626,8 @@ def publish():
         except Exception as e:
             print(f"Skipping direct bytes upload: {e}")
 
-        base_url = request.url_root.rstrip('/')
-        avatar_url = f"{base_url}/chibi/Yvonne-discord-pdp.png"
+        base_url = os.environ.get("SERVER_URL", request.url_root.rstrip('/'))
+        avatar_url = f"{base_url}/public/Yvonne-discord-pdp.png"
 
         if file_bytes:
             # Send as Multipart Form Attachment
@@ -900,7 +903,6 @@ def convert_file():
         
         # ACTUALLY execute the conversion!
         try:
-            sys.path.append(os.path.dirname(BASE_DIR))
             from convertisseur.converter import video_to_mpgif
             video_to_mpgif(src_path, out_path, preset="balanced")
             converted_files.append(base_name)
@@ -986,6 +988,7 @@ if __name__ == '__main__':
             print(" * \033[92mNgrok Auth Token loaded from environment.\033[0m")
         
         public_url = ngrok.connect(5000).public_url
+        os.environ["SERVER_URL"] = public_url
         print(f" * \033[92mngrok tunnel \"{public_url}\" -> \"http://127.0.0.1:5000\"\033[0m")
         print(f" * Update SERVER_URL in .env or bot.py to: {public_url}")
         
