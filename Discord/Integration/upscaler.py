@@ -13,19 +13,35 @@ UPSCALER_DIR = os.path.join(CACHE_DIR, 'upscalers')
 
 os.makedirs(UPSCALER_DIR, exist_ok=True)
 
-# URLs for Windows portable ncnn-vulkan binaries
-BINARIES = {
-    "waifu2x": {
-        "url": "https://github.com/nihui/waifu2x-ncnn-vulkan/releases/download/20220728/waifu2x-ncnn-vulkan-20220728-windows.zip",
-        "dir": "waifu2x-ncnn-vulkan-20220728-windows",
-        "exe": "waifu2x-ncnn-vulkan.exe"
-    },
-    "realesrgan": {
-        "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
-        "dir": "realesrgan-ncnn-vulkan-20220424-windows",
-        "exe": "realesrgan-ncnn-vulkan.exe"
+# URLs for portable ncnn-vulkan binaries
+IS_WINDOWS = os.name == 'nt'
+
+if IS_WINDOWS:
+    BINARIES = {
+        "waifu2x": {
+            "url": "https://github.com/nihui/waifu2x-ncnn-vulkan/releases/download/20220728/waifu2x-ncnn-vulkan-20220728-windows.zip",
+            "dir": "waifu2x-ncnn-vulkan-20220728-windows",
+            "exe": "waifu2x-ncnn-vulkan.exe"
+        },
+        "realesrgan": {
+            "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
+            "dir": "realesrgan-ncnn-vulkan-20220424-windows",
+            "exe": "realesrgan-ncnn-vulkan.exe"
+        }
     }
-}
+else:
+    BINARIES = {
+        "waifu2x": {
+            "url": "https://github.com/nihui/waifu2x-ncnn-vulkan/releases/download/20220728/waifu2x-ncnn-vulkan-20220728-ubuntu.zip",
+            "dir": "waifu2x-ncnn-vulkan-20220728-ubuntu",
+            "exe": "waifu2x-ncnn-vulkan"
+        },
+        "realesrgan": {
+            "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip",
+            "dir": "realesrgan-ncnn-vulkan-20220424-ubuntu",
+            "exe": "realesrgan-ncnn-vulkan"
+        }
+    }
 
 def ensure_binary(model):
     """
@@ -51,6 +67,9 @@ def ensure_binary(model):
         
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(UPSCALER_DIR)
+            
+        if not IS_WINDOWS and os.path.exists(exe_path):
+            os.chmod(exe_path, 0o755)
             
         print(f"[{model.capitalize()}] Ready!")
     except Exception as e:

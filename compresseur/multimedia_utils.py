@@ -27,9 +27,16 @@ def download_ffmpeg():
         print(f"❌ Error downloading FFmpeg: {e}")
         return None
 
+import shutil
+
 def get_ffmpeg_cmd():
     global FFMPEG_CMD
     if FFMPEG_CMD: return FFMPEG_CMD
+        
+    # Check if a native ffmpeg binary exists in PATH (Linux/Render)
+    if shutil.which('ffmpeg'):
+        FFMPEG_CMD = 'ffmpeg'
+        return FFMPEG_CMD
         
     if os.path.exists(LOCAL_FFMPEG):
         FFMPEG_CMD = LOCAL_FFMPEG
@@ -42,10 +49,12 @@ def get_ffmpeg_cmd():
     except ImportError:
         pass
         
-    downloaded_path = download_ffmpeg()
-    if downloaded_path:
-        FFMPEG_CMD = downloaded_path
-        return FFMPEG_CMD
+    # Windows native fallback
+    if os.name == 'nt':
+        downloaded_path = download_ffmpeg()
+        if downloaded_path:
+            FFMPEG_CMD = downloaded_path
+            return FFMPEG_CMD
     
     return 'ffmpeg'
 
