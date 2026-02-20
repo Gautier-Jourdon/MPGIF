@@ -623,18 +623,22 @@ def publish():
         except Exception as e:
             print(f"Skipping direct bytes upload: {e}")
 
+        base_url = request.url_root.rstrip('/')
+        avatar_url = f"{base_url}/chibi/Yvonne-discord-pdp.png"
+
         if file_bytes:
             # Send as Multipart Form Attachment
             resp = requests.post(
                 target_url,
-                data={"username": "MPGIF Terminal"},
+                data={"username": "Yvonne", "avatar_url": avatar_url},
                 files={"file": (filename + ".mp4", file_bytes, "video/mp4")}
             )
         else:
             # Fallback to Text URL
             payload = {
                 "content": public_mp4_url,
-                "username": "MPGIF Terminal"
+                "username": "Yvonne",
+                "avatar_url": avatar_url
             }
             resp = requests.post(target_url, json=payload)
         
