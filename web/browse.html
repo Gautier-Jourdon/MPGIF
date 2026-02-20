@@ -846,6 +846,152 @@
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
             font-weight: bold;
         }
+
+        /* ___ TUTORIAL OVERLAY SYSTEM ___ */
+        #tutorial-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 15, 0.85);
+            /* Dark mask */
+            z-index: 2000;
+            /* Above everything normally */
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: all;
+            /* Block clicks */
+            backdrop-filter: blur(3px);
+        }
+
+        #tutorial-overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
+        /* The dialog box Endfield style */
+        #ember-dialog {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            width: 90%;
+            max-width: 800px;
+            background: var(--surface);
+            border: 2px solid var(--primary);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 213, 79, 0.2);
+            z-index: 2001;
+            display: flex;
+            align-items: flex-end;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s, transform 0.4s;
+        }
+
+        #tutorial-overlay.active+#ember-dialog {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: all;
+        }
+
+        #ember-dialog .chibi-container {
+            width: 250px;
+            height: 250px;
+            flex-shrink: 0;
+            position: relative;
+            margin-bottom: -2px;
+            /* Bottom align with border */
+            margin-left: 10px;
+        }
+
+        #ember-dialog .chibi-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: bottom;
+            filter: drop-shadow(5px 5px 10px rgba(0, 0, 0, 0.5));
+        }
+
+        #ember-dialog .dialog-content {
+            flex-grow: 1;
+            padding: 25px 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 150px;
+        }
+
+        #ember-dialog .dialog-header {
+            font-family: var(--tech-font);
+            color: var(--primary);
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255, 213, 79, 0.3);
+            padding-bottom: 5px;
+        }
+
+        #ember-dialog .dialog-text {
+            font-size: 1.05rem;
+            line-height: 1.5;
+            color: var(--text-main);
+            flex-grow: 1;
+        }
+
+        #ember-dialog .dialog-controls {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        #ember-dialog .btn-tut {
+            background: rgba(255, 213, 79, 0.1);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 8px 20px;
+            cursor: pointer;
+            font-family: var(--tech-font);
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        #ember-dialog .btn-tut:hover {
+            background: var(--primary);
+            color: #000;
+        }
+
+        /* Class to bring elements above the mask */
+        .tut-highlight {
+            position: relative !important;
+            z-index: 2002 !important;
+            /* Above mask */
+            box-shadow: 0 0 0 4px var(--primary), 0 0 30px var(--primary-glow) !important;
+            border-radius: 4px;
+            background: var(--surface) !important;
+            /* Ensure it stays opaque */
+            pointer-events: none !important;
+            /* Prevent user clicking during tut */
+            animation: pulse-tut 2s infinite;
+        }
+
+        @keyframes pulse-tut {
+            0% {
+                box-shadow: 0 0 0 4px var(--primary), 0 0 20px var(--primary-glow);
+            }
+
+            50% {
+                box-shadow: 0 0 0 6px var(--primary), 0 0 40px var(--primary-glow);
+            }
+
+            100% {
+                box-shadow: 0 0 0 4px var(--primary), 0 0 20px var(--primary-glow);
+            }
+        }
     </style>
 </head>
 
@@ -865,6 +1011,7 @@
                 onclick="document.getElementById('converterModal').style.display='flex'"><i>↺</i> CONVERT</button>
             <button class="btn" onclick="toggleFavs()" id="favBtn"><i>★</i> FAVS</button>
             <button class="btn" onclick="toggleTheme()" id="themeBtn"><i>☀</i></button>
+            <button class="btn" onclick="startTutorial()" id="helpBtn" title="Help / Tutorial"><i>?</i></button>
             <button class="btn primary" id="uploadBtn"
                 onclick="document.getElementById('uploadModal').style.display='flex'"><i>+</i> UPLOAD</button>
 
@@ -1408,6 +1555,140 @@
             }
         };
         init();
+    </script>
+
+    <!-- ___ TUTORIAL OVERLAY & DIALOG ___ -->
+    <div id="tutorial-overlay"></div>
+    <div id="ember-dialog">
+        <div class="chibi-container">
+            <img id="tut-chibi" src="">
+        </div>
+        <div class="dialog-content">
+            <div>
+                <div class="dialog-header">Ember - Terminal Guide</div>
+                <div class="dialog-text" id="tut-text"></div>
+            </div>
+            <div class="dialog-controls">
+                <button class="btn-tut" id="tut-btn-skip" onclick="skipTutorial()">SKIP TUTORIAL</button>
+                <button class="btn-tut" id="tut-btn-prev" onclick="tutPrev()">◀ BACK</button>
+                <button class="btn-tut" id="tut-btn-next" onclick="tutNext()">NEXT ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TUTORIAL MAIN SCRIPT -->
+    <script>
+        let tutSteps = [];
+        let currTut = 0;
+        let tutTarget = null;
+
+        const chibiPath = "chibi/";
+
+        function getTutorialStrings() {
+            // Determine Tone
+            let tone = "casual";
+            if (typeof dUser !== 'undefined' && dUser.is_admin) tone = "admin";
+            else if (typeof dUser !== 'undefined') {
+                const stats = dUser.stats || { uploads: 0 };
+                let stars = 1;
+                if (stats.uploads >= 50) stars = 5;
+                if (stats.uploads >= 20 && stats.uploads < 50) stars = 4;
+                if (stars >= 5) tone = "veteran";
+            }
+
+            // Build text based on tone
+            const text = {
+                admin: [
+                    "Bonjour, Administrateur. Le Terminal Visuel est prêt à recevoir vos directives.",
+                    "Voici votre profil directeur. Vous y trouverez un résumé de vos classifications ainsi que le trombinoscope des membres du serveur.",
+                    "Utilisez ce sélecteur de canal pour surveiller un flux spécifique. Très pratique pour isoler les transmissions douteuses.",
+                    "Vous pouvez inverser la polarité d'affichage (Thème Clair / Sombre) ici si l'environnement le requiert.",
+                    "L'outil de déploiement et de conversion. Assurez-vous d'approuver les envois de qualité via ces modules.",
+                    "Voici la galerie. N'hésitez pas à classer et mettre en favoris les dossiers prioritaires en interagissant avec l'interface de la carte."
+                ],
+                veteran: [
+                    "Te revoilà, Opérateur Élite ! Je suis Ember, prête à t'assister pour optimiser tes terminaux.",
+                    "Ton profil indique d'excellents états de service. C'est ici que tu peux comparer tes envois avec le reste de l'équipe.",
+                    "N'oublie pas le sélecteur de salon juste ici pour filtrer le brouhaha du réseau et te concentrer sur un canal à la fois.",
+                    "Clair ou Sombre ? Tu connais la chanson, le bouton de transition optique est là !",
+                    "Tes modules d'envoi et de conversion de vidéos mp4. On compte sur toi pour enrichir la base de données !",
+                    "Et enfin la galerie. Si une archive te plaît, le petit cœur permet de la classer dans tes favoris. Au travail !"
+                ],
+                casual: [
+                    "Salut, nouvelle recrue ! Je suis Ember. Bienvenue sur l'interface du Terminal MPGIF. Laisse-moi te guider.",
+                    "Ici se trouve ton Profil d'Opérateur. C'est là que tu pourras suivre tes compteurs, gagner des badges, et voir tes collègues de serveur.",
+                    "Tu veux voir les fichiers liés à un salon vocal ou textuel précis ? C'est par ici que ça se passe !",
+                    "Ça pique les yeux ? Utilise ce bouton pour passer l'interface en thème Clair ou Sombre !",
+                    "C'est ici que tu peux convertir des fichiers MP4 ou nous envoyer tes propres créations validées.",
+                    "Voici une carte d'archive standard ! Survole-la pour lancer la lecture, et n'hésite pas à utiliser le petit cœur pour la mettre en favori. Amuse-toi bien !"
+                ]
+            };
+
+            return text[tone];
+        }
+
+        function startTutorial() {
+            const strings = getTutorialStrings();
+            tutSteps = [
+                { target: null, img: "posing-ember.png", text: strings[0] },
+                { target: ".nav-profile", img: "glasses-ember-satisfied.png", text: strings[1] },
+                { target: "#channelSelect", img: "ember-right-direction.png", text: strings[2] },
+                { target: "#themeBtn", img: "switching-ember.png", text: strings[3] },
+                { target: ".header-tools", img: "applausing-ember.png", text: strings[4], queryAll: true },
+                { target: ".gallery", img: "happy-ember.png", text: strings[5] }
+            ];
+
+            currTut = 0;
+            document.getElementById('tutorial-overlay').classList.add('active');
+            renderTutStep();
+        }
+
+        function renderTutStep() {
+            if (currTut >= tutSteps.length) { skipTutorial(); return; }
+
+            const step = tutSteps[currTut];
+
+            // Clean old highlights
+            document.querySelectorAll('.tut-highlight').forEach(el => el.classList.remove('tut-highlight'));
+
+            // Highlight new target
+            if (step.target) {
+                if (step.queryAll) {
+                    const el = document.querySelectorAll(step.target)[1];
+                    if (el) { el.classList.add('tut-highlight'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                } else if (document.querySelector(step.target)) {
+                    const el = document.querySelector(step.target);
+                    el.classList.add('tut-highlight');
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+
+            // Update Dialog
+            document.getElementById('tut-chibi').src = chibiPath + step.img;
+            document.getElementById('tut-text').innerHTML = step.text;
+
+            // Buttons
+            document.getElementById('tut-btn-prev').style.display = (currTut === 0) ? 'none' : 'block';
+            document.getElementById('tut-btn-next').textContent = (currTut === tutSteps.length - 1) ? "FINISH" : "NEXT ▶";
+        }
+
+        function tutNext() { currTut++; renderTutStep(); }
+        function tutPrev() { currTut--; renderTutStep(); }
+
+        function skipTutorial() {
+            document.getElementById('tutorial-overlay').classList.remove('active');
+            document.querySelectorAll('.tut-highlight').forEach(el => el.classList.remove('tut-highlight'));
+            localStorage.setItem('mpgif_tutorial_completed', 'true');
+        }
+
+        // Delay tutorial boot slightly to ensure components (like user state) load first
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (!localStorage.getItem('mpgif_tutorial_completed')) {
+                    startTutorial();
+                }
+            }, 1500);
+        });
     </script>
 </body>
 
