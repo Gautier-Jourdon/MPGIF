@@ -1645,9 +1645,23 @@
             tutSteps = [
                 { target: null, img: "posing-ember.png", text: strings[0] },
                 { target: ".nav-profile", img: "glasses-ember-satisfied.png", text: strings[1] },
-                { target: "#channelSelect", img: "ember-right-direction.png", text: strings[2] },
+                {
+                    target: "#serverPanel", img: "ember-right-direction.png", text: strings[2],
+                    onEnter: () => {
+                        const p = document.getElementById('serverPanel'); if (p) p.classList.add('visible');
+                        const t = document.getElementById('serverTrigger'); if (t) t.classList.add('active');
+                    },
+                    onLeave: () => {
+                        const p = document.getElementById('serverPanel'); if (p) p.classList.remove('visible');
+                        const t = document.getElementById('serverTrigger'); if (t) t.classList.remove('active');
+                    }
+                },
                 { target: "#themeBtn", img: "switching-ember.png", text: strings[3] },
-                { target: ".header-tools", img: "applausing-ember.png", text: strings[4], queryAll: true },
+                {
+                    target: "#uploadModal .modal-content", img: "applausing-ember.png", text: strings[4],
+                    onEnter: () => { document.getElementById('uploadModal').style.display = 'flex'; },
+                    onLeave: () => { document.getElementById('uploadModal').style.display = 'none'; }
+                },
                 { target: ".gallery", img: "happy-ember.png", text: strings[5] }
             ];
 
@@ -1656,10 +1670,18 @@
             renderTutStep();
         }
 
-        function renderTutStep() {
+        function renderTutStep(oldIndex = -1) {
+            if (oldIndex >= 0 && oldIndex < tutSteps.length && tutSteps[oldIndex].onLeave) {
+                tutSteps[oldIndex].onLeave();
+            }
+
             if (currTut >= tutSteps.length) { skipTutorial(); return; }
 
             const step = tutSteps[currTut];
+
+            if (step.onEnter) {
+                step.onEnter();
+            }
 
             // Clean old highlights
             document.querySelectorAll('.tut-highlight').forEach(el => el.classList.remove('tut-highlight'));
@@ -1728,10 +1750,13 @@
             document.getElementById('tut-btn-next').textContent = (currTut === tutSteps.length - 1) ? "FINISH" : "NEXT ▶";
         }
 
-        function tutNext() { currTut++; renderTutStep(); }
-        function tutPrev() { currTut--; renderTutStep(); }
+        function tutNext() { let old = currTut; currTut++; renderTutStep(old); }
+        function tutPrev() { let old = currTut; currTut--; renderTutStep(old); }
 
         function skipTutorial() {
+            if (currTut >= 0 && currTut < tutSteps.length && tutSteps[currTut].onLeave) {
+                tutSteps[currTut].onLeave();
+            }
             document.getElementById('tutorial-overlay').classList.remove('active');
             document.getElementById('tutorial-hole').style.opacity = '0';
             document.getElementById('tut-chibi-floating').style.opacity = '0';

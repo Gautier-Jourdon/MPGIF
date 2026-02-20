@@ -75,7 +75,7 @@ def serve_js(filename):
 
 from flask import redirect
 
-PUBLIC_DIR = os.path.join(BASE_DIR, 'public')
+PUBLIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'public')
 
 @app.route('/files/<path:filename>')
 def get_file(filename):
