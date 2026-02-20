@@ -43,6 +43,32 @@
             --modal-bg: rgba(240, 240, 245, 0.95);
         }
 
+        /* Light Theme overrides for the Tutorial Dialog */
+        body.light-theme #ember-dialog {
+            background: #FFFFFF;
+            border-color: #D3A92A;
+        }
+
+        body.light-theme #ember-dialog .dialog-text {
+            color: #141419;
+            font-weight: 500;
+        }
+
+        body.light-theme #ember-dialog .dialog-header {
+            color: #B58D14;
+            border-bottom-color: rgba(181, 141, 20, 0.3);
+        }
+
+        body.light-theme #ember-dialog .btn-tut {
+            color: #B58D14;
+            border-color: #B58D14;
+        }
+
+        body.light-theme #ember-dialog .btn-tut:hover {
+            background: #D3A92A;
+            color: #FFF;
+        }
+
         body {
             margin: 0;
             background-color: var(--bg);
@@ -983,7 +1009,7 @@
             border-radius: 4px;
             background: var(--surface) !important;
             /* Ensure it stays opaque */
-            pointer-events: none !important;
+            pointer-events: auto !important;
             /* Prevent user clicking during tut */
             animation: pulse-tut 2s infinite;
         }
@@ -1078,7 +1104,54 @@
         </div>
     </div>
 
+    <!-- FOOTER -->
+    <footer
+        style="text-align:center; padding: 20px; font-family: var(--tech-font); font-size: 0.8rem; color: var(--text-sec); border-top: 1px solid var(--border); margin-top: 50px; background: rgba(0,0,0,0.5);">
+        MPGIF Terminal OS © 2026 Gautier Jourdon.<br>
+        <span onclick="document.getElementById('disclaimerModal').style.display='flex'"
+            style="color: var(--primary); cursor: pointer; text-decoration: underline; margin-top: 10px; display: inline-block;"
+            id="disclaimerBtn">Acte de Non-Licence / Disclaimer</span>
+    </footer>
+
     <div id="toast">SYSTEM ALERT</div>
+
+    <!-- DISCLAIMER MODAL -->
+    <div class="modal-overlay" id="disclaimerModal">
+        <div class="dossier-panel"
+            style="width:500px; max-height:80vh; overflow-y:auto; line-height: 1.5; font-family:var(--ui-font);">
+            <div class="panel-head" style="margin-bottom: 20px;"><span>ACTE DE NON-LICENCE</span> <span
+                    onclick="document.getElementById('disclaimerModal').style.display='none'"
+                    style="cursor:pointer; color:var(--primary);">[X]</span></div>
+
+            <strong style="color:var(--text-main); font-family:var(--tech-font);">Projet : MPGIF<br>
+                Auteur : Gautier Jourdon<br>
+                Date : 2026</strong><br><br>
+
+            <span style="color:var(--primary); font-weight:bold;">1 - Absence de licence officielle</span><br>
+            <span style="color:var(--text-sec);">Le projet MPGIF n’est pas affilié, soutenu, ni approuvé par Yostar,
+                Hypergryph, ou tout autre ayant droit lié à l’univers Arknights Endfield. Aucun droit officiel n’est
+                détenu ou accordé pour l’utilisation de ce projet.</span><br><br>
+
+            <span style="color:var(--primary); font-weight:bold;">2 - Utilisation d’éléments inspirés</span><br>
+            <span style="color:var(--text-sec);">Les visuels, personnages ou éléments graphiques présents dans ce projet
+                sont inspirés de l’univers original et/ou créés de manière originale ou via IA. Aucune reproduction
+                exacte d’assets officiels n’est utilisée.</span><br><br>
+
+            <span style="color:var(--primary); font-weight:bold;">3 - But non lucratif</span><br>
+            <span style="color:var(--text-sec);">Ce projet est strictement non commercial et non lucratif, destiné à un
+                usage personnel ou communautaire limité (ex. : serveur Discord privé).</span><br><br>
+
+            <span style="color:var(--primary); font-weight:bold;">4 - Respect des droits d’auteur</span><br>
+            <span style="color:var(--text-sec);">Si les ayants droit demandent la suppression d’un contenu ou d’un
+                élément du projet, celui-ci sera immédiatement retiré ou modifié pour respecter leurs
+                droits.</span><br><br>
+
+            <span style="color:var(--primary); font-weight:bold;">5 - Responsabilité</span><br>
+            <span style="color:var(--text-sec);">L’utilisateur reconnaît que ce projet n’accorde aucun droit de
+                propriété intellectuelle sur l’univers ou les personnages mentionnés. Toute utilisation de ce projet se
+                fait à ses propres risques et dans le respect des droits d’auteur.</span><br><br>
+        </div>
+    </div>
 
     <!-- UPLOAD MODAL -->
     <div class="modal-overlay" id="uploadModal">
@@ -1297,8 +1370,11 @@
             if (state.filter) list = list.filter(f => state.favorites.includes(f.name));
 
             list.forEach(f => {
-                const isShort = f.height > f.width; const card = document.createElement('div'); card.className = 'card';
+                const card = document.createElement('div'); card.className = 'card';
+                // Try database logic first. Default to Horizontal (vi) if metadata missing or 0
+                let isShort = (f.height > 0 && f.width > 0) ? (f.height > f.width) : false;
                 if (isShort) sh.appendChild(card); else vi.appendChild(card);
+
                 const isFav = state.favorites.includes(f.name);
 
                 card.innerHTML = `
@@ -1332,7 +1408,23 @@
                     pl.load(`/files/${f.name}`).then(() => { pl.play().catch(e => { }); });
                 };
                 box.onmouseleave = () => { pl.stop(); if (state.currentPlayer === pl) state.currentPlayer = null; };
-                pl.load(`/files/${f.name}`);
+
+                pl.load(`/files/${f.name}`).then(() => {
+                    // Check actual loaded data to correct missing DB metadata
+                    if (pl.mpgif && pl.mpgif.height > 0 && pl.mpgif.width > 0) {
+                        const actualShort = pl.mpgif.height > pl.mpgif.width;
+                        if (actualShort && !isShort) {
+                            sh.appendChild(card); // Move to short list natively
+                            isShort = true;
+                        } else if (!actualShort && isShort) {
+                            vi.appendChild(card); // Move to video list natively
+                            isShort = false;
+                        }
+                    }
+                }).catch(err => {
+                    console.warn(`File ${f.name} is corrupted and will be hidden from UI.`, err);
+                    card.style.display = 'none';
+                });
             });
         }
 
@@ -1472,6 +1564,7 @@
 
             const nm = document.getElementById('upName').value;
 
+            let hasError = false;
             for (let i = 0; i < pendingUploads.length; i++) {
                 const fd = new FormData();
                 fd.append('file', pendingUploads[i]);
@@ -1480,22 +1573,29 @@
                 if (nm && pendingUploads.length === 1) fd.append('custom_name', nm);
 
                 try {
-                    await fetch(API.upload, { method: 'POST', body: fd });
+                    const r = await fetch(API.upload, { method: 'POST', body: fd });
+                    if (!r.ok) {
+                        const err = await r.json();
+                        throw new Error(err.error || "Upload failed");
+                    }
                 } catch (e) {
                     console.error("Failed to upload " + pendingUploads[i].name, e);
+                    showToast("ERROR: " + e.message);
+                    hasError = true;
                 }
             }
 
-            document.getElementById('uploadModal').style.display = 'none';
-            document.getElementById('dropZ').textContent = "[ DRAG & DROP OR CLICK TO UPLOAD ]";
             btn.textContent = "INITIATE UPLOAD"; btn.style.pointerEvents = 'auto';
-            document.getElementById('upName').value = '';
+            document.getElementById('dropZ').textContent = "[ DRAG & DROP OR CLICK TO UPLOAD ]";
 
-            pendingUploads = [];
-            renderUploadList();
-
-            showToast("FILES UPLOADED");
-            loadFiles().then(render);
+            if (!hasError) {
+                document.getElementById('uploadModal').style.display = 'none';
+                document.getElementById('upName').value = '';
+                pendingUploads = [];
+                renderUploadList();
+                showToast("FILES UPLOADED");
+                loadFiles().then(render);
+            }
         }
         async function doConvert() {
             const input = document.getElementById('cIn');
@@ -1593,12 +1693,11 @@
     <script>
         let tutSteps = [];
         let currTut = 0;
-        let tutTarget = null;
+        let tutClickHandler = null;
 
         const chibiPath = "chibi/";
 
         function getTutorialStrings() {
-            // Determine Tone
             let tone = "casual";
             if (typeof dUser !== 'undefined' && dUser.is_admin) tone = "admin";
             else if (typeof dUser !== 'undefined') {
@@ -1609,60 +1708,145 @@
                 if (stars >= 5) tone = "veteran";
             }
 
-            // Build text based on tone
             const text = {
                 admin: [
-                    "Bonjour, Administrateur. Le Terminal Visuel est prêt à recevoir vos directives.",
-                    "Voici votre profil directeur. Vous y trouverez un résumé de vos classifications ainsi que le trombinoscope des membres du serveur.",
-                    "Utilisez ce sélecteur de canal pour surveiller un flux spécifique. Très pratique pour isoler les transmissions douteuses.",
-                    "Vous pouvez inverser la polarité d'affichage (Thème Clair / Sombre) ici si l'environnement le requiert.",
-                    "L'outil de déploiement et de conversion. Assurez-vous d'approuver les envois de qualité via ces modules.",
-                    "Voici la galerie. N'hésitez pas à classer et mettre en favoris les dossiers prioritaires en interagissant avec l'interface de la carte."
+                    "Bonjour, Administrateur. Le Terminal Visuel est prêt. Laissez-moi vous guider à travers les récentes modifications.",
+                    "Voici votre accès au profil directeur. Cliquez dessus pour vérifier vos accréditations.",
+                    "Très bien. Voici le résumé de vos classifications ainsi que le trombinoscope du personnel. Cliquez sur NEXT.",
+                    "Maintenant, observez ce transmetteur LINK. Cliquez dessus pour paramétrer le flux réseau.",
+                    "Parfait. Utilisez ce panneau pour surveiller un salon spécifique, et isoler les transmissions.",
+                    "La barre de recherche. Entrez des identifiants ou des balises pour filtrer la base de données.",
+                    "L'outil de déploiement. Cliquez dessus pour ouvrir le CONVERTISSEUR automatique.",
+                    "Insérez vos fichiers MP4 ici pour les convertir au format MPGIF exclusif de notre système.",
+                    "La commande d'éclairage. Indispensable pour ne pas fatiguer vos yeux pendant l'analyse des données.",
+                    "C'est ici que vous injectez du contenu. Cliquez sur UPLOAD pour configurer un déploiement.",
+                    "Les modules d'envoi. Assurez-vous d'approuver les envois de qualité avant leur traitement.",
+                    "Voici la base documentaire. Ce sont les modules d'archive où s'afficheront les vidéos.",
+                    "Faisons un essai éducatif. Vous pouvez utiliser les boutons de cette archive pour voter (+/-), l'ajouter aux favoris (Étoile) ou l'envoyer sur Discord (clic image) !",
+                    "Pour réviser ce tutoriel, utilisez le bouton Aide [?] dans la barre de navigation.",
+                    "Enfin, veuillez prendre connaissance de l'Acte de Non-Licence situé en bas de page. C'est un manifeste de bonne foi pour ce fan-projet. Cliquez dessus.",
+                    "Merci d'avoir lu. Ce n'est pas un règlement strict mais un rappel bienveillant. Fin du briefing !"
                 ],
                 veteran: [
-                    "Te revoilà, Opérateur Élite ! Je suis Ember, prête à t'assister pour optimiser tes terminaux.",
-                    "Ton profil indique d'excellents états de service. C'est ici que tu peux comparer tes envois avec le reste de l'équipe.",
-                    "N'oublie pas le sélecteur de salon juste ici pour filtrer le brouhaha du réseau et te concentrer sur un canal à la fois.",
-                    "Clair ou Sombre ? Tu connais la chanson, le bouton de transition optique est là !",
-                    "Tes modules d'envoi et de conversion de vidéos mp4. On compte sur toi pour enrichir la base de données !",
-                    "Et enfin la galerie. Si une archive te plaît, le petit cœur permet de la classer dans tes favoris. Au travail !"
+                    "Te revoilà, Opérateur d'Élite ! Prêt à optimiser la base de données avec moi ?",
+                    "Ton dossier de carrière t'attend. Clique sur ton icône de profil en haut à droite.",
+                    "Et voilà ! Tu peux ici comparer tes exploits avec le reste de l'équipe et voir les membres enregistrés.",
+                    "N'oublie pas le sélecteur de canal. Clique sur le bouton LINK pour ouvrir les accès serveurs.",
+                    "Exactement ! C'est ici que tu peux filtrer le brouhaha du réseau et te concentrer sur un salon précis.",
+                    "Un fichier précis en tête ? Utilise cette barre de recherche pour trouver ce qu'il te faut.",
+                    "Ici se trouve le Conversion Center ! Vas-y, clique dessus.",
+                    "Pratique n'est-ce pas ? Tu peux y glisser des dizaines de MP4 et tout convertir en format MPGIF d'un simple clic !",
+                    "Clair ou Sombre ? Tu connais la chanson, le bouton de transition optique est là ! Attention aux yeux.",
+                    "Allez, clique sur UPLOAD en haut, notre base a encore besoin de tes archives !",
+                    "C'est ici que tu peux nous envoyer tout tes MPGIF prêts à l'emploi.",
+                    "Et voici la galerie ! C'est ici qu'apparaîtront toutes les archives classifiées.",
+                    "Vas-y essaie ! Vote avec les flèches, met ce MPGIF en favori avec l'étoile, ou clique sur l'image pour le balancer dans ton salon Discord !",
+                    "Si tu as un trou de mémoire, clique sur le bouton [?] en haut pour me rappeler. Je serai là !",
+                    "Dernière chose : le lien d'Acte de Non-Licence en bas de page. C'est vital pour prouver qu'on est un projet de fan à but non lucratif, clique dessus.",
+                    "C'est juste un rappel amical, prend le temps de le lire à l'occasion. Allez, au travail !"
                 ],
                 casual: [
-                    "Salut, nouvelle recrue ! Je suis Ember. Bienvenue sur l'interface du Terminal MPGIF. Laisse-moi te guider.",
-                    "Ici se trouve ton Profil d'Opérateur. C'est là que tu pourras suivre tes compteurs, gagner des badges, et voir tes collègues de serveur.",
-                    "Tu veux voir les fichiers liés à un salon vocal ou textuel précis ? C'est par ici que ça se passe !",
-                    "Ça pique les yeux ? Utilise ce bouton pour passer l'interface en thème Clair ou Sombre !",
-                    "C'est ici que tu peux convertir des fichiers MP4 ou nous envoyer tes propres créations validées.",
-                    "Voici une carte d'archive standard ! Survole-la pour lancer la lecture, et n'hésite pas à utiliser le petit cœur pour la mettre en favori. Amuse-toi bien !"
+                    "Salut, nouvelle recrue ! Bienvenue à Endfield Industries. Je suis Ember, ton guide pour le Terminal Visuel.",
+                    "Ici c'est ton bouton de Profil Opérateur. Vas-y, clique dessus pour l'ouvrir !",
+                    "Génial ! Tes statistiques, tes badges secrets et la liste de tes collègues s'y trouvent. Sympa non ?",
+                    "On va parler serveurs virtuels. Clique sur le bouton LINK en haut pour dérouler le menu.",
+                    "En plein dans le mille ! Tu peux maintenant filtrer facilement les vidéos par serveur ou salon vocal.",
+                    "La barre de recherche SEARCH DATABASE permet de trouver une vidéo en scannant ses tags ou son nom.",
+                    "Le système n'accepte que les .mpgif, alors ce bouton vers le Convertisseur sera ton meilleur ami ! Clique !",
+                    "Tu pourras y convertir facilement tes vidéos MP4 traditionnelles au format reconnu du Terminal !",
+                    "Il fait un peu sombre ? Ce bouton permet d'inverser les thèmes Clair et Sombre de l'interface.",
+                    "Ce gros bouton permet d'apporter tes propres archives. Clique dessus pour y accéder !",
+                    "Fantastique. Tu pourras nous envoyer ici tes précieuses animations MPGIF pour les partager avec tout le monde.",
+                    "Voilà la galerie principale, celle où apparaîtront toutes les vidéos !",
+                    "Essaie les boutons de cette archive ! L'Étoile pour tes favoris, les flèches pour les votes... Et clique sur l'image pour l'envoyer direct sur Discord !",
+                    "Tu as tout compris ! Si tu veux revoir ce tutoriel plus tard, tu pourras y réaccéder via le petit bouton [?] en haut.",
+                    "Pour finir, clique sur le bouton de l'Acte de Non-Licence en bas de l'écran. C'est pour rappeler la bonne foi de ce Fan-Projet communautaire !",
+                    "Ce n'est pas un règlement agressif, juste un rappel bienveillant ! Sur ce, amuse-toi bien sur le Terminal MPGIF !"
                 ]
             };
-
             return text[tone];
         }
 
         function startTutorial() {
             const strings = getTutorialStrings();
+
+            // Temporary release of the header's strict stacking context so its children can be brought above the tutorial mask
+            const h = document.querySelector('header');
+            if (h) h.style.zIndex = 'auto';
+
             tutSteps = [
+                // 0: Welcome
                 { target: null, img: "posing-ember.png", text: strings[0] },
-                { target: ".nav-profile", img: "glasses-ember-satisfied.png", text: strings[1] },
+                // 1: Profile Trigger
                 {
-                    target: "#serverPanel", img: "ember-right-direction.png", text: strings[2],
+                    target: ".nav-profile", img: "glasses-ember-satisfied.png", text: strings[1], requireClick: true,
+                    onEnter: () => { document.getElementById('profileModal').style.display = 'none'; }
+                },
+                // 2: Profile Modal
+                {
+                    target: ".operator-file", img: "glasses-ember-satisfied.png", text: strings[2],
+                    onLeave: () => { document.getElementById('profileModal').style.display = 'none'; }
+                },
+                // 3: Server Trigger
+                {
+                    target: "#serverTrigger", img: "ember-right-direction.png", text: strings[3], requireClick: true,
+                    chibiPos: { left: -360, top: 10 },
                     onEnter: () => {
-                        const p = document.getElementById('serverPanel'); if (p) p.classList.add('visible');
-                        const t = document.getElementById('serverTrigger'); if (t) t.classList.add('active');
-                    },
+                        const p = document.getElementById('serverPanel'); if (p) p.classList.remove('visible');
+                        const t = document.getElementById('serverTrigger'); if (t) t.classList.remove('active');
+                    }
+                },
+                // 4: Server Panel
+                {
+                    target: "#serverPanel", img: "ember-right-direction.png", text: strings[4],
+                    chibiPos: { left: -360, top: 200 },
                     onLeave: () => {
                         const p = document.getElementById('serverPanel'); if (p) p.classList.remove('visible');
                         const t = document.getElementById('serverTrigger'); if (t) t.classList.remove('active');
                     }
                 },
-                { target: "#themeBtn", img: "switching-ember.png", text: strings[3] },
+                // 5: Search Bar
+                { target: "#searchInput", img: "switching-ember.png", text: strings[5], chibiPos: { left: 10, top: 80 } },
+                // 6: Converter Trigger
                 {
-                    target: "#uploadModal .modal-content", img: "applausing-ember.png", text: strings[4],
-                    onEnter: () => { document.getElementById('uploadModal').style.display = 'flex'; },
+                    target: "#converterBtn", img: "arguying-ember.png", text: strings[6], requireClick: true,
+                    chibiPos: { left: -100, top: 80 },
+                    onEnter: () => { document.getElementById('converterModal').style.display = 'none'; }
+                },
+                // 7: Converter Modal
+                {
+                    target: "#converterModal .dossier-panel", img: "happy-ember.png", text: strings[7],
+                    onLeave: () => { document.getElementById('converterModal').style.display = 'none'; }
+                },
+                // 8: Theme Btn
+                { target: "#themeBtn", img: "switching-ember.png", text: strings[8], chibiPos: { left: -50, top: 80 } },
+                // 9: Upload Trigger
+                {
+                    target: "#uploadBtn", img: "applausing-ember.png", text: strings[9], requireClick: true,
+                    chibiPos: { left: -120, top: 80 },
+                    onEnter: () => { document.getElementById('uploadModal').style.display = 'none'; }
+                },
+                // 10: Upload Modal
+                {
+                    target: "#uploadModal .dossier-panel", img: "applausing-ember.png", text: strings[10],
                     onLeave: () => { document.getElementById('uploadModal').style.display = 'none'; }
                 },
-                { target: ".gallery", img: "happy-ember.png", text: strings[5] }
+                // 11: Gallery Section
+                { target: "#s-shorts .section-title", img: "happy-ember.png", text: strings[11], chibiPos: { left: 50, top: -200 } },
+                // 12: Feature explanation (First Gallery Card test interaction)
+                { target: ".gallery-grid .card", img: "posing-ember.png", text: strings[12], chibiPos: { left: 30, top: -250 } },
+                // 13: Help button replay
+                { target: "#helpBtn", img: "glasses-ember-satisfied.png", text: strings[13], chibiPos: { left: -60, top: 80 } },
+                // 14: Disclaimer Trigger
+                {
+                    target: "#disclaimerBtn", img: "arguying-ember.png", text: strings[14], requireClick: true,
+                    onEnter: () => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); document.getElementById('disclaimerModal').style.display = 'none'; }
+                },
+                // 15: Disclaimer Modal
+                {
+                    target: "#disclaimerModal .dossier-panel", img: "glasses-ember-satisfied.png", text: strings[15],
+                    onLeave: () => { document.getElementById('disclaimerModal').style.display = 'none'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+                }
             ];
 
             currTut = 0;
@@ -1675,6 +1859,13 @@
                 tutSteps[oldIndex].onLeave();
             }
 
+            // Clean old highlights and clicks
+            document.querySelectorAll('.tut-highlight').forEach(el => {
+                el.classList.remove('tut-highlight');
+                if (tutClickHandler) el.removeEventListener('click', tutClickHandler);
+            });
+            tutClickHandler = null;
+
             if (currTut >= tutSteps.length) { skipTutorial(); return; }
 
             const step = tutSteps[currTut];
@@ -1683,11 +1874,16 @@
                 step.onEnter();
             }
 
-            // Clean old highlights
-            document.querySelectorAll('.tut-highlight').forEach(el => el.classList.remove('tut-highlight'));
-
             const hole = document.getElementById('tutorial-hole');
             const floatingChibi = document.getElementById('tut-chibi-floating');
+
+            const btnNext = document.getElementById('tut-btn-next');
+            if (step.requireClick) {
+                btnNext.style.display = 'none';
+            } else {
+                btnNext.style.display = 'block';
+                btnNext.textContent = (currTut === tutSteps.length - 1) ? "FINISH" : "NEXT ▶";
+            }
 
             // Highlight new target
             if (step.target) {
@@ -1701,7 +1897,18 @@
 
                 if (el) {
                     el.classList.add('tut-highlight');
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                    if (step.requireClick) {
+                        tutClickHandler = function () {
+                            setTimeout(() => tutNext(), 250);
+                        };
+                        el.addEventListener('click', tutClickHandler, { once: true });
+                    }
+
+                    // Don't scroll to center if it's a fixed header trigger to avoid jumping
+                    if (step.target !== "#serverTrigger" && step.target !== ".nav-profile" && step.target !== "#uploadBtn" && step.target !== "#themeBtn") {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
 
                     setTimeout(() => {
                         const rect = el.getBoundingClientRect();
@@ -1715,26 +1922,30 @@
 
                         // Smart Chibi Position
                         floatingChibi.style.transform = 'none';
-                        if (rect.left > window.innerWidth / 2) {
-                            floatingChibi.style.left = Math.max(10, rect.left - 270) + 'px';
-                        } else {
-                            floatingChibi.style.left = (rect.right + 10) + 'px';
-                        }
 
-                        if (rect.top > window.innerHeight / 2) {
-                            floatingChibi.style.top = (rect.top - 200) + 'px';
+                        if (step.chibiPos) {
+                            floatingChibi.style.left = (rect.right + step.chibiPos.left) + 'px';
+                            floatingChibi.style.top = (rect.top + step.chibiPos.top) + 'px';
                         } else {
-                            floatingChibi.style.top = rect.top + 'px';
+                            if (rect.left > window.innerWidth / 2) {
+                                floatingChibi.style.left = Math.max(10, rect.left - 270) + 'px';
+                            } else {
+                                floatingChibi.style.left = (rect.right + 10) + 'px';
+                            }
+
+                            if (rect.top > window.innerHeight / 2) {
+                                floatingChibi.style.top = (rect.top - 200) + 'px';
+                            } else {
+                                floatingChibi.style.top = rect.top + 'px';
+                            }
                         }
-                    }, 350); // delay allows scroll to finish
+                    }, 350);
                 }
             } else {
                 // First step - Center chibi, hide hole
                 hole.style.opacity = '0';
-                hole.style.width = '0px';
-                hole.style.height = '0px';
-                hole.style.left = '50%';
-                hole.style.top = '50%';
+                hole.style.width = '0px'; hole.style.height = '0px';
+                hole.style.left = '50%'; hole.style.top = '50%';
 
                 floatingChibi.style.transform = 'translate(-50%, -100%)';
                 floatingChibi.style.left = '50%';
@@ -1744,10 +1955,7 @@
             // Update Dialog
             document.getElementById('tut-chibi').src = chibiPath + step.img;
             document.getElementById('tut-text').innerHTML = step.text;
-
-            // Buttons
             document.getElementById('tut-btn-prev').style.display = (currTut === 0) ? 'none' : 'block';
-            document.getElementById('tut-btn-next').textContent = (currTut === tutSteps.length - 1) ? "FINISH" : "NEXT ▶";
         }
 
         function tutNext() { let old = currTut; currTut++; renderTutStep(old); }
@@ -1757,10 +1965,18 @@
             if (currTut >= 0 && currTut < tutSteps.length && tutSteps[currTut].onLeave) {
                 tutSteps[currTut].onLeave();
             }
+
+            // Restore header stacking context
+            const h = document.querySelector('header');
+            if (h) h.style.zIndex = '100';
+
             document.getElementById('tutorial-overlay').classList.remove('active');
             document.getElementById('tutorial-hole').style.opacity = '0';
             document.getElementById('tut-chibi-floating').style.opacity = '0';
-            document.querySelectorAll('.tut-highlight').forEach(el => el.classList.remove('tut-highlight'));
+            document.querySelectorAll('.tut-highlight').forEach(el => {
+                el.classList.remove('tut-highlight');
+                if (tutClickHandler) el.removeEventListener('click', tutClickHandler);
+            });
             localStorage.setItem('mpgif_tutorial_completed', 'true');
         }
 

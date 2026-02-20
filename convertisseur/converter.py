@@ -42,6 +42,16 @@ def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=48
         orig_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         orig_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) 
+        
+        # Handle mobile video rotation metadata
+        try:
+            rotation_meta = int(cap.get(cv2.CAP_PROP_ORIENTATION_META))
+        except:
+            rotation_meta = 0
+            
+        if rotation_meta in [90, 270]:
+            orig_width, orig_height = orig_height, orig_width
+            
         if height is None:
             ratio = width / orig_width
             height = int(orig_height * ratio)
@@ -97,6 +107,14 @@ def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=48
                 break
             
             if count % frame_interval == 0:
+                # Apply rotation if needed
+                if rotation_meta == 90:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+                elif rotation_meta == 180:
+                    frame = cv2.rotate(frame, cv2.ROTATE_180)
+                elif rotation_meta == 270:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                    
                 frame = cv2.resize(frame, (width, height))
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 pil_img = Image.fromarray(frame_rgb)

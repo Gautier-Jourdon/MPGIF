@@ -51,6 +51,7 @@ class MPGIFPlayer {
             this.isLoaded = true;
         } catch (e) {
             console.error("Load failed", e);
+            throw e;
         }
     }
 

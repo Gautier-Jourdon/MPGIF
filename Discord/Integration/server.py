@@ -225,25 +225,9 @@ def upload_file():
                 save_name = secure_filename(file.filename)
 
             file_bytes = file.read()
-            
-            # Upload Main File to Supabase Storage
-            try:
-                supabase.storage.from_('mpgifs').upload(
-                    file=file_bytes,
-                    path=save_name,
-                    file_options={"upsert": "true", "content-type": "application/octet-stream"}
-                )
-            except Exception as e:
-                try:
-                    supabase.storage.from_('mpgifs').update(
-                        file=file_bytes,
-                        path=save_name,
-                        file_options={"upsert": "true", "content-type": "application/octet-stream"}
-                    )
-                except Exception as e2: print(f"Storage upload failed: {e2}")
-                
-            # Save temporarily to extract metadata and thumbnail
             temp_path = os.path.join(FILES_DIR, save_name)
+            
+            # Save temporarily first to validate & extract metadata BEFORE uploading
             with open(temp_path, 'wb') as f:
                 f.write(file_bytes)
                 
@@ -257,6 +241,22 @@ def upload_file():
                 reader.read()
                 width, height = reader.width, reader.height
                 
+                # Validation Passed: Upload Main File to Supabase Storage
+                try:
+                    supabase.storage.from_('mpgifs').upload(
+                        file=file_bytes,
+                        path=save_name,
+                        file_options={"upsert": "true", "content-type": "application/octet-stream"}
+                    )
+                except Exception as e:
+                    try:
+                        supabase.storage.from_('mpgifs').update(
+                            file=file_bytes,
+                            path=save_name,
+                            file_options={"upsert": "true", "content-type": "application/octet-stream"}
+                        )
+                    except Exception as e2: print(f"Storage upload failed: {e2}")
+
                 # Upload Thumbnail
                 if reader.frames:
                     frame1 = reader.frames[0]
@@ -280,7 +280,11 @@ def upload_file():
                                 except: pass
                 except Exception as t_err: print(f"Transcode error: {t_err}")
 
-            except Exception as ex: print(f"Metadata/Processing extraction failed: {ex}")
+            except Exception as ex: 
+                print(f"Validation failed (Not a valid MPGIF): {ex}")
+                if os.path.exists(temp_path): os.remove(temp_path)
+                return jsonify({"error": "Fichier corrompu ou fausse extension. Veuillez utiliser le Convertisseur."}), 400
+            
             finally:
                 if os.path.exists(temp_path): os.remove(temp_path)
                 if os.path.exists(temp_mp4_path): os.remove(temp_mp4_path)
@@ -605,12 +609,28 @@ def publish():
 
         print(f"📤 Publishing to: {target_url}")
 
-        payload = {
-            "content": public_mp4_url,
-            "username": "MPGIF Proxy"
-        }
-            
-        resp = requests.post(target_url, json=payload)
+        file_bytes = None
+        try:
+            r_vid = requests.get(public_mp4_url, timeout=10)
+            if r_vid.status_code == 200:
+                file_bytes = r_vid.content
+        except Exception as e:
+            print(f"Skipping direct bytes upload: {e}")
+
+        if file_bytes:
+            # Send as Multipart Form Attachment
+            resp = requests.post(
+                target_url,
+                data={"username": "MPGIF Terminal"},
+                files={"file": (filename + ".mp4", file_bytes, "video/mp4")}
+            )
+        else:
+            # Fallback to Text URL
+            payload = {
+                "content": public_mp4_url,
+                "username": "MPGIF Terminal"
+            }
+            resp = requests.post(target_url, json=payload)
         
         if resp.status_code in [200, 204]:
             return jsonify({"status": "ok"}), 200
@@ -857,13 +877,26 @@ def convert_file():
         if file.filename == '': continue
         ext = os.path.splitext(file.filename)[1].lower()
         if ext not in ['.mp4', '.mpgif', '.gif']: continue
+        target_ext = '.mpgif' if ext in ['.mp4', '.mov', '.webm', '.gif'] else '.mp4'
+        base_name = os.path.splitext(file.filename)[0] + target_ext
         
-        target_ext = '.mpgif' if ext in ['.mp4', '.gif'] else '.mp4'
-        new_filename = os.path.splitext(file.filename)[0] + target_ext
+        # We need a source path for the web upload
+        src_path = os.path.join(cache_dir, f"raw_{file.filename}")
+        out_path = os.path.join(cache_dir, base_name)
         
-        temp_path = os.path.join(cache_dir, new_filename)
-        file.save(temp_path)
-        converted_files.append(new_filename)
+        file.save(src_path)
+        
+        # ACTUALLY execute the conversion!
+        try:
+            sys.path.append(os.path.dirname(BASE_DIR))
+            from convertisseur.converter import video_to_mpgif
+            video_to_mpgif(src_path, out_path, preset="balanced")
+            converted_files.append(base_name)
+        except Exception as e:
+            print(f"Failed to convert {file.filename}: {e}")
+        finally:
+            if os.path.exists(src_path):
+                os.remove(src_path)
         
     if not converted_files:
         return jsonify({"error": "No valid files converted"}), 400
