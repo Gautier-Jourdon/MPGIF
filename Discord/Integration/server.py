@@ -171,7 +171,7 @@ def get_files():
                 "score": score,
                 "upvotes": len(upvotes),
                 "downvotes": len(downvotes),
-                "tags": [], # Ignored for now based on previous impl
+                "tags": f.get('tags') or [],
                 "width": f.get('width', 0) or 0,
                 "height": f.get('height', 0) or 0
             })
@@ -212,6 +212,10 @@ def upload_file():
     try:
         user_id = request.form.get('user_id')
         custom_name = request.form.get('custom_name')
+        raw_tags = request.form.get('tags', '')
+        
+        tags_list = [t.strip() for t in raw_tags.split(',') if t.strip()]
+        if len(tags_list) > 5: tags_list = tags_list[:5] # Max 5 tags
         
         if not can_manage(user_id):
             return jsonify({"error": "Unauthorized"}), 403
@@ -301,7 +305,8 @@ def upload_file():
                 "uploader_id": user_id,
                 "custom_name": custom_name,
                 "width": width,
-                "height": height
+                "height": height,
+                "tags": tags_list
             }).execute()
             
             # --- Update Stats ---
@@ -320,6 +325,30 @@ def upload_file():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/tags/update', methods=['POST'])
+def update_tags():
+    if not supabase: return jsonify({"error": "No DB connection"}), 500
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        filename = data.get('filename')
+        raw_tags = data.get('tags', [])
+        
+        if not can_manage(user_id):
+            return jsonify({"error": "Unauthorized. Only Admins/Mods can regularize tags."}), 403
+            
+        if not filename:
+            return jsonify({"error": "Missing filename"}), 400
+            
+        tags_list = [str(t).strip() for t in raw_tags if str(t).strip()]
+        if len(tags_list) > 5: tags_list = tags_list[:5]
+        
+        res = supabase.table('files').update({"tags": tags_list}).eq("filename", filename).execute()
+        return jsonify({"status": "ok", "tags": tags_list})
+        
+    except Exception as e:
+        print(f"Update tags error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/vote', methods=['POST'])
 def handle_vote():

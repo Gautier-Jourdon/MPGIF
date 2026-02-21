@@ -598,6 +598,69 @@
             right: 20px;
             background: rgba(0, 0, 0, 0.5);
             border: 2px solid var(--border);
+        }
+
+        /* ___ TAGS & WARNINGS ___ */
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 5px;
+            min-height: 20px;
+        }
+
+        .tag-badge {
+            font-size: 0.65rem;
+            color: #141419;
+            background: var(--primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .warning-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .warn-blue {
+            background: #4FC3F7;
+            color: #000;
+            box-shadow: 0 0 10px #4FC3F7;
+        }
+
+        .warn-yellow {
+            background: #FFF176;
+            color: #000;
+            box-shadow: 0 0 10px #FFF176;
+        }
+
+        .warn-orange {
+            background: #FFB74D;
+            color: #000;
+            box-shadow: 0 0 10px #FFB74D;
+        }
+
+        .warn-red {
+            background: #E57373;
+            color: #FFF;
+            box-shadow: 0 0 10px #E57373;
+        }
+
+        .op-back {
             color: #fff;
             border-radius: 50%;
             width: 40px;
@@ -1335,11 +1398,32 @@
         </div>
     </div>
 
+    <!-- Regularization Modal for missing tags -->
+    <div class="modal-overlay" id="regularizeModal">
+        <div class="dossier-panel" style="max-height: 400px;">
+            <div class="dossier-head">
+                <div class="dossier-title">> REGULARIZE TAGS</div>
+                <button class="post-btn-small" onclick="closeRegularize()">X</button>
+            </div>
+            <div class="dossier-body">
+                <p>FILE: <span id="regFilename" style="color:var(--primary);"></span></p>
+                <p style="color:var(--text-sec); font-size:0.85rem;">Assign between 1 and 5 tags to properly catalog
+                    this item in the database. Missing tags cause a Level 2 Orange Warning.</p>
+                <div>
+                    <strong>TAGS (comma separated):</strong>
+                    <input type="text" id="regTags" class="op-input" placeholder="e.g. cat, meme, jump" maxlength="60">
+                </div>
+                <button class="btn primary" style="width:100%; margin-top:15px; justify-content:center;"
+                    onclick="saveRegularizedTags()">SAVE METADATA</button>
+            </div>
+        </div>
+    </div>
+
     <!-- JS Scripts -->
     <script src="mpgif_reader.js"></script>
     <script src="mpgif_player.js"></script>
     <script>
-        const API = { files: '/api/files', vote: '/api/vote', favorites: '/api/favorites', upload: '/api/upload', delete: '/api/delete', publish: '/api/publish', user: '/api/user', members: '/api/members', guild: '/api/guild/info', update_user: '/api/user/update', channels: '/api/channels', convert: '/api/convert' };
+        const API = { files: '/api/files', vote: '/api/vote', favorites: '/api/favorites', upload: '/api/upload', delete: '/api/delete', publish: '/api/publish', user: '/api/user', members: '/api/members', guild: '/api/guild/info', update_user: '/api/user/update', channels: '/api/channels', convert: '/api/convert', regularize: '/api/regularize' };
         let state = { files: [], favorites: [], filter: false, currentPlayer: null, canManage: false };
         const p = new URLSearchParams(window.location.search);
         const userId = p.get('uid'); const username = p.get('user') || 'GUEST'; const guildId = p.get('gid');
@@ -1419,7 +1503,19 @@
 
                 const isFav = state.favorites.includes(f.name);
 
+                let tagsHtml = '';
+                let warningHtml = '';
+
+                // Tags Setup
+                if (f.tags && f.tags.length > 0) {
+                    tagsHtml = `<div class="tag-list">${f.tags.map(t => `<span class="tag-badge">${t}</span>`).join('')}</div>`;
+                } else if (state.canManage) {
+                    // Orange Warning Level 2 for Missing Tags
+                    warningHtml = `<div class="warning-badge warn-orange" title="Missing Tags - Click to Regularize" onclick="openRegularize('${f.name}')">!</div>`;
+                }
+
                 card.innerHTML = `
+                 ${warningHtml}
                  <!-- Canvas acting as publish trigger -->
                  <div class="media-box" onclick="publish('${f.name}')" title="Click to Post"></div>
                  
@@ -1427,6 +1523,7 @@
                      <div class="card-actions">
                          <div class="filename" title="${f.name}">${f.name}</div>
                      </div>
+                     ${tagsHtml}
                      <div class="card-actions" style="margin-top:10px;">
                          <div style="display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.3); border-radius:15px; padding:2px 5px;">
                              <button class="icon-btn icon-btn-vote" onclick="vote('${f.name}','down')">▼</button>
@@ -1465,7 +1562,12 @@
                     }
                 }).catch(err => {
                     console.warn(`File ${f.name} is corrupted and will be hidden from UI.`, err);
-                    card.style.display = 'none';
+                    if (state.canManage) {
+                        // Level 3 Red Warning for corrupted files or 404
+                        box.innerHTML = `<div class="warning-badge warn-red" title="Broken File (404/Corrupted) - Needs Admin attention" style="position:relative; margin: 20px auto;">!</div>`;
+                    } else {
+                        card.style.display = 'none';
+                    }
                 });
             });
         }
@@ -1678,12 +1780,56 @@
             if (!hasError) {
                 document.getElementById('uploadModal').style.display = 'none';
                 document.getElementById('upName').value = '';
+                document.getElementById('upTags').value = '';
                 pendingUploads = [];
                 renderUploadList();
                 showToast("FILES UPLOADED");
                 loadFiles().then(render);
             }
         }
+
+        // --- TAG REGULARIZATION MODAL ---
+        let currentRegularizingFile = null;
+        window.openRegularize = (filename) => {
+            currentRegularizingFile = filename;
+            const fileData = state.files.find(f => f.name === filename);
+            const currentTags = fileData && fileData.tags ? fileData.tags.join(', ') : '';
+
+            document.getElementById('regTags').value = currentTags;
+            document.getElementById('regFilename').textContent = filename;
+            document.getElementById('regularizeModal').style.display = 'flex';
+        };
+
+        window.closeRegularize = () => {
+            document.getElementById('regularizeModal').style.display = 'none';
+            currentRegularizingFile = null;
+        };
+
+        window.saveRegularizedTags = async () => {
+            if (!currentRegularizingFile) return;
+            const rawTags = document.getElementById('regTags').value.split(',').map(t => t.trim()).filter(t => t);
+
+            if (rawTags.length < 1) { showToast("AT LEAST 1 TAG REQUIRED"); return; }
+            if (rawTags.length > 5) { showToast("MAX 5 TAGS ALLOWED"); return; }
+
+            try {
+                const r = await fetch('/api/tags/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: currentRegularizingFile, user_id: userId, tags: rawTags })
+                });
+                if (r.ok) {
+                    showToast("TAGS CONFIGURED");
+                    closeRegularize();
+                    loadFiles().then(render);
+                } else {
+                    const err = await r.json();
+                    showToast("UPDATE FAILED: " + (err.error || "Unknown"));
+                }
+            } catch (e) {
+                showToast("NETWORK ERROR");
+            }
+        };
         async function doConvert() {
             const input = document.getElementById('cIn');
             const files = input.files;
