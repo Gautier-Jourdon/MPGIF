@@ -15,7 +15,7 @@ PRESETS = {
     "archival": {"fps": 30, "width": 1080, "quality": 95, "loop": 1, "audio": True},
 }
 
-def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=480, height=None, quality=75, loop=0, metadata=None, progress_callback=None):
+def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=480, height=None, quality=75, loop=0, metadata=None, progress_callback=None, start_time=None, end_time=None):
     """
     Converts a video file (MP4, WebM, GIF) to .mpgif.
     """
@@ -41,7 +41,11 @@ def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=48
 
         orig_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         orig_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) 
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        orig_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
+        
+        if start_time is not None:
+            cap.set(cv2.CAP_PROP_POS_MSEC, float(start_time) * 1000)
         
         # Handle mobile video rotation metadata
         try:
@@ -67,7 +71,7 @@ def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=48
             
         if should_process_audio:
             try:
-                extract_audio_from_video(input_path, audio_temp_path)
+                extract_audio_from_video(input_path, audio_temp_path, start_time=start_time, end_time=end_time)
                 if os.path.exists(audio_temp_path):
                     print("🎵 Audio Extracted. Normalizing to -18 LUFS...")
                     if normalize_audio(audio_temp_path, audio_norm_path):
@@ -97,11 +101,27 @@ def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=48
         saved_count = 0
 
         import time
-        start_time = time.time()
-        total_frames_target = int(total_frames / frame_interval) if frame_interval > 0 else 0
-        if total_frames_target == 0: total_frames_target = 1
+        start_time_exec = time.time()
+        
+        # Calculate target frames based on start/end time if provided
+        actual_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
+        if start_time is not None and end_time is not None:
+            frames_to_process = int((end_time - start_time) * actual_fps)
+        elif start_time is not None:
+            frames_to_process = total_frames - int(start_time * actual_fps)
+        elif end_time is not None:
+            frames_to_process = int(end_time * actual_fps)
+        else:
+            frames_to_process = total_frames
+            
+        total_frames_target = int(frames_to_process / frame_interval) if frame_interval > 0 else 0
+        if total_frames_target <= 0: total_frames_target = 1
 
         while True:
+            current_msec = cap.get(cv2.CAP_PROP_POS_MSEC)
+            if end_time is not None and current_msec > (end_time * 1000.0):
+                break
+                
             ret, frame = cap.read()
             if not ret:
                 break
@@ -125,13 +145,13 @@ def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=48
                 saved_count += 1
                 
                 if progress_callback:
-                    elapsed = time.time() - start_time
+                    elapsed = time.time() - start_time_exec
                     if saved_count > 0:
                         avg_time_per_frame = elapsed / saved_count
                         remaining_frames = total_frames_target - saved_count
                         eta = remaining_frames * avg_time_per_frame
-                        progress = (saved_count / total_frames_target) * 100
-                        progress_callback(saved_count, total_frames_target, elapsed, eta)
+                        progress = min(99, (saved_count / total_frames_target) * 100) # Cap at 99 so 100% is only on true finish
+                        progress_callback(saved_count, total_frames_target, elapsed, eta, progress=progress)
 
             count += 1
             

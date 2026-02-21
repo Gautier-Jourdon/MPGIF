@@ -1249,7 +1249,21 @@
             <p style="font-family:var(--tech-font); font-size:0.8rem; color:var(--text-sec); margin-top:0;">Select
                 multiple .mp4 files to batch convert to .mpgif.</p>
             <input type="file" id="cIn" multiple accept=".mp4,.gif"
-                style="margin-bottom:20px; width:100%; color:var(--text-main); font-family:var(--ui-font);">
+                style="margin-bottom:15px; width:100%; color:var(--text-main); font-family:var(--ui-font);">
+
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <div style="flex:1;">
+                    <label style="font-size:0.7rem; color:var(--text-sec);">START TIME (s)</label>
+                    <input type="number" id="cStart" class="op-input" placeholder="0" min="0" step="1"
+                        style="width:100%; padding:5px;">
+                </div>
+                <div style="flex:1;">
+                    <label style="font-size:0.7rem; color:var(--text-sec);">END TIME (s)</label>
+                    <input type="number" id="cEnd" class="op-input" placeholder="End" min="0" step="1"
+                        style="width:100%; padding:5px;">
+                </div>
+            </div>
+
             <label
                 style="display:block; margin-bottom: 20px; font-family:var(--tech-font); font-size:0.8rem; color:var(--text-main); cursor:pointer; background: rgba(0,0,0,0.3); padding:10px; border-radius:4px; border:1px solid var(--border);">
                 <input type="checkbox" id="cAutoUpload" style="margin-right:8px; accent-color:var(--primary);">
@@ -1611,6 +1625,7 @@
                          </div>
                          <div style="display:flex; gap:10px;">
                             ${state.canManage ? `<button class="icon-btn" style="color:#E57373;" onclick="del('${f.name}')">🗑</button>` : ''}
+                            <button class="icon-btn" onclick="share('${f.name}')">🔗</button>
                             <button class="icon-btn ${isFav ? 'active' : ''}" onclick="fav('${f.name}')">★</button>
                          </div>
                      </div>
@@ -1815,6 +1830,12 @@
             }
         }
 
+        window.share = async (f) => {
+            const url = window.location.origin + '/v/' + f;
+            try { await navigator.clipboard.writeText(url); showToast("URL COPIED TO CLIPBOARD"); }
+            catch (err) { showToast("FAILED TO COPY URL"); }
+        }
+
         async function vote(n, t) { if (!userId) return showToast("LOGIN REQ"); await fetch(API.vote, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, filename: n, type: t }) }); loadFiles().then(render); }
         async function fav(n) { if (!userId) return showToast("LOGIN REQ"); const r = await fetch(API.favorites, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, filename: n, action: state.favorites.includes(n) ? 'remove' : 'add' }) }); if (r.ok) { const d = await r.json(); state.favorites = d.favorites; render(); } }
         async function del(n) { if (!userId || !state.canManage) return; if (confirm("DELETE PURGE: " + n + "?")) { await fetch(API.delete, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: n, user_id: userId }) }); loadFiles().then(render); } }
@@ -1987,10 +2008,15 @@
             btn.textContent = `UPLOADING RAW FILES... [0%]`;
 
             const autoUp = document.getElementById('cAutoUpload').checked;
+            const cStart = document.getElementById('cStart').value;
+            const cEnd = document.getElementById('cEnd').value;
+
             const taskId = "task_" + Math.random().toString(36).substr(2, 9);
             const fd = new FormData();
             for (let i = 0; i < files.length; i++) fd.append('files', files[i]);
             if (autoUp) { fd.append('auto_upload', 'true'); fd.append('user_id', userId); }
+            if (cStart) fd.append('start_time', cStart);
+            if (cEnd) fd.append('end_time', cEnd);
             fd.append('task_id', taskId);
 
             let pollTimer = null;

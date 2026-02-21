@@ -46,6 +46,44 @@ if not os.path.exists(FILES_DIR):
 def home():
     return "MPGIF Server is Running! Use /view?file=filename.mpgif"
 
+@app.route('/v/<filename>')
+def embed_player(filename):
+    """Serve a minimal HTML page to display the MPGIF in full screen."""
+    html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <title>MPGIF - {filename}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body, html {{ margin: 0; padding: 0; background: #0b0f19; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; font-family: 'Courier New', monospace; }}
+        canvas {{ max-width: 100%; max-height: 100vh; object-fit: contain; cursor: pointer; }}
+        #hud {{ position: absolute; bottom: 20px; color: rgba(129, 212, 250, 0.5); font-size: 12px; pointer-events: none; }}
+    </style>
+</head>
+<body>
+    <canvas id="playerCanvas" title="Click to Play/Pause"></canvas>
+    <div id="hud">MPGIF RAW STREAM</div>
+    <script src="/mpgif_reader.js"></script>
+    <script src="/mpgif_player.js"></script>
+    <script>
+        const canvas = document.getElementById('playerCanvas');
+        const pl = new MPGIFPlayer(canvas);
+        let loaded = false;
+        canvas.onclick = () => {{
+            if (!loaded) {{
+                pl.load('/files/{filename}').then(() => {{
+                    loaded = true; pl.play();
+                }}).catch(e => console.error(e));
+            }} else {{
+                if (pl.isPlaying) pl.stop(); else pl.play();
+            }}
+        }};
+        pl.load('/files/{filename}').then(() => loaded = true);
+    </script>
+</body>
+</html>'''
+    return html
+
 @app.route('/view')
 def view():
     filename = request.args.get('file', '')
@@ -223,6 +261,36 @@ def check_auth():
     user_id = request.args.get('user_id')
     return jsonify({"can_manage": can_manage(user_id)})
 
+def call_auto_tagger(image_bytes):
+    """
+    Attempts to generate tags using HF Inference API if token is provided.
+    Otherwise, returns fallback tags.
+    """
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        # Fallback logic if no API key
+        return ["auto-tagged", "ai-pending"]
+        
+    try:
+        import requests
+        headers = {"Authorization": f"Bearer {hf_token}"}
+        # Lightweight public vision-to-text model
+        API_URL = "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large"
+        response = requests.post(API_URL, headers=headers, data=image_bytes)
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0 and 'generated_text' in result[0]:
+                caption = result[0]['generated_text']
+                # Create rudimentary tags from caption (words > 3 chars)
+                words = [w.strip().lower() for w in caption.split(' ') if len(w) > 3]
+                tags = list(set(words))[:4]
+                tags.append("ai-vision")
+                return tags[:5]
+    except Exception as e:
+        print(f"⚠️ Auto-tagger failed: {e}")
+        
+    return ["auto-tagged", "error"]
+
 def process_mpgif_upload(temp_path, save_name, user_id, custom_name="", tags_list=[]):
     """Core logic to push a valid .mpgif to Supabase Storage & Postgres."""
     with open(temp_path, 'rb') as f:
@@ -256,6 +324,10 @@ def process_mpgif_upload(temp_path, save_name, user_id, custom_name="", tags_lis
                     try: supabase.storage.from_('mpgifs').upload(file=mp4_bytes, path=save_name + '.mp4', file_options={"upsert": "true", "content-type": "video/mp4"})
                     except: supabase.storage.from_('mpgifs').update(file=mp4_bytes, path=save_name + '.mp4', file_options={"upsert": "true", "content-type": "video/mp4"})
         except Exception as t_err: print(f"Transcode error: {t_err}")
+
+        # AI Vision Auto-Tagging Fallback
+        if not tags_list and reader.frames:
+            tags_list = call_auto_tagger(reader.frames[0])
 
         # Postgres Upsert
         supabase.table('files').upsert({
@@ -947,6 +1019,11 @@ def convert_file():
     task_id = request.form.get('task_id', 'unknown')
     auto_upload = request.form.get('auto_upload') == 'true'
     user_id = request.form.get('user_id')
+    
+    start_time = request.form.get('start_time')
+    if start_time: start_time = float(start_time)
+    end_time = request.form.get('end_time')
+    if end_time: end_time = float(end_time)
 
     if auto_upload and not can_manage(user_id):
          return jsonify({"error": "Unauthorized to auto-upload"}), 403
@@ -987,7 +1064,7 @@ def convert_file():
         try:
             from convertisseur.converter import video_to_mpgif
             progress_tracker[task_id] = {"status": "converting", "percent": 0, "current_file": base_name}
-            video_to_mpgif(src_path, out_path, preset="balanced", progress_callback=cb)
+            video_to_mpgif(src_path, out_path, preset="balanced", progress_callback=cb, start_time=start_time, end_time=end_time)
             
             if auto_upload:
                 try:

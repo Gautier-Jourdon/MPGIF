@@ -89,19 +89,24 @@ def decompress_frame_webp(webp_data: bytes) -> Image.Image:
     """
     return Image.open(io.BytesIO(webp_data))
 
-def extract_audio_from_video(video_path: str, output_audio_path: str):
+def extract_audio_from_video(video_path: str, output_audio_path: str, start_time=None, end_time=None):
     """
-    Extracts audio from video file to a temporary wav/mp3 file using FFmpeg.
+    Extracts audio from video file to a temporary wav/mp3 file using FFmpeg, with optional trimming.
     """
-    cmd = [
-        get_ffmpeg_cmd(), '-y',
+    cmd = [get_ffmpeg_cmd(), '-y']
+    if start_time is not None:
+        cmd.extend(['-ss', str(start_time)])
+    if end_time is not None:
+        cmd.extend(['-to', str(end_time)])
+        
+    cmd.extend([
         '-i', video_path,
         '-vn',
         '-acodec', 'pcm_s16le',
         '-ar', '44100',
         '-ac', '2',
         output_audio_path
-    ]
+    ])
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
 def compress_audio_mp3(input_audio_path: str) -> bytes:
