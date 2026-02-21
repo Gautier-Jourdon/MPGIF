@@ -1250,6 +1250,11 @@
                 multiple .mp4 files to batch convert to .mpgif.</p>
             <input type="file" id="cIn" multiple accept=".mp4,.gif"
                 style="margin-bottom:20px; width:100%; color:var(--text-main); font-family:var(--ui-font);">
+            <label
+                style="display:block; margin-bottom: 20px; font-family:var(--tech-font); font-size:0.8rem; color:var(--text-main); cursor:pointer; background: rgba(0,0,0,0.3); padding:10px; border-radius:4px; border:1px solid var(--border);">
+                <input type="checkbox" id="cAutoUpload" style="margin-right:8px; accent-color:var(--primary);">
+                [AUTO-UPLOAD] Push automatically to Main Terminal after conversion
+            </label>
             <button class="btn primary" id="convBtn" style="width:100%; justify-content:center;"
                 onclick="doConvert()">CONVERT FORMAT</button>
 
@@ -1392,6 +1397,72 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Badge Studio -->
+                        <div class="op-folder" id="badgeStudioFol" style="margin-top:20px; display:none;">
+                            <div class="op-folder-header">BADGE_SYS_DEF</div>
+                            <div class="op-folder-title">| MERIT BADGE STUDIO</div>
+                            <div class="op-folder-body">
+                                <p style="margin-top:0; font-size:0.85rem;">Define custom rules for automated profile
+                                    awards.</p>
+                                <div id="badgeRulesList"
+                                    style="margin-bottom:15px; max-height:150px; overflow-y:auto; border:1px dashed var(--border); padding:5px;">
+                                </div>
+
+                                <div class="tech-grid" style="margin-bottom:10px;">
+                                    <div>
+                                        <strong>BADGE NAME:</strong>
+                                        <input type="text" id="bNameIn" class="op-input" style="padding:5px;"
+                                            placeholder="e.g. Veteran">
+                                    </div>
+                                    <div>
+                                        <strong>ICON (EMOJI):</strong>
+                                        <select id="bIconIn" class="op-input" style="padding:5px; font-size:1.2rem;">
+                                            <option value="⭐">⭐</option>
+                                            <option value="🔥">🔥</option>
+                                            <option value="💠">💠</option>
+                                            <option value="📦">📦</option>
+                                            <option value="🧐">🧐</option>
+                                            <option value="🏆">🏆</option>
+                                            <option value="💎">💎</option>
+                                            <option value="🛡️">🛡️</option>
+                                            <option value="⚡">⚡</option>
+                                            <option value="👑">👑</option>
+                                            <option value="🎬">🎬</option>
+                                            <option value="🎨">🎨</option>
+                                            <option value="🚀">🚀</option>
+                                            <option value="💡">💡</option>
+                                            <option value="🧩">🧩</option>
+                                            <option value="🕹️">🕹️</option>
+                                            <option value="🎤">🎤</option>
+                                            <option value="🎧">🎧</option>
+                                            <option value="💀">💀</option>
+                                            <option value="💯">💯</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <strong>CONDITION TARGET:</strong>
+                                        <select id="bTypeIn" class="op-input" style="padding:5px;">
+                                            <option value="upload">Uploads</option>
+                                            <option value="vote">Votes Given</option>
+                                            <option value="manual">Manual Assignment Only</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <strong>VAR VALUE (X):</strong>
+                                        <input type="number" id="bValIn" class="op-input" style="padding:5px;"
+                                            value="10">
+                                    </div>
+                                </div>
+                                <label
+                                    style="display:block; margin-bottom: 15px; font-family:var(--tech-font); font-size:0.8rem; cursor:pointer;">
+                                    <input type="checkbox" id="bCardVisIn"> Show on Media Thumbnail Cards (Global
+                                    Visibility)
+                                </label>
+                                <button class="btn primary" style="width:100%; justify-content:center;"
+                                    onclick="createBadgeRule()">DEPLOY NEW BADGE</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1423,7 +1494,7 @@
     <script src="mpgif_reader.js"></script>
     <script src="mpgif_player.js"></script>
     <script>
-        const API = { files: '/api/files', vote: '/api/vote', favorites: '/api/favorites', upload: '/api/upload', delete: '/api/delete', publish: '/api/publish', user: '/api/user', members: '/api/members', guild: '/api/guild/info', update_user: '/api/user/update', channels: '/api/channels', convert: '/api/convert', regularize: '/api/regularize' };
+        const API = { files: '/api/files', vote: '/api/vote', favorites: '/api/favorites', upload: '/api/upload', delete: '/api/delete', publish: '/api/publish', user: '/api/user', members: '/api/members', guild: '/api/guild/info', update_user: '/api/user/update', channels: '/api/channels', convert: '/api/convert', regularize: '/api/regularize', badges: '/api/badges/rules' };
         let state = { files: [], favorites: [], filter: false, currentPlayer: null, canManage: false };
         const p = new URLSearchParams(window.location.search);
         const userId = p.get('uid'); const username = p.get('user') || 'GUEST'; const guildId = p.get('gid');
@@ -1507,8 +1578,12 @@
                 let warningHtml = '';
 
                 // Tags Setup
-                if (f.tags && f.tags.length > 0) {
-                    tagsHtml = `<div class="tag-list">${f.tags.map(t => `<span class="tag-badge">${t}</span>`).join('')}</div>`;
+                let safeTags = [];
+                if (Array.isArray(f.tags)) safeTags = f.tags;
+                else if (typeof f.tags === 'string') safeTags = [f.tags];
+
+                if (safeTags.length > 0) {
+                    tagsHtml = `<div class="tag-list">${safeTags.map(t => `<span class="tag-badge">${t}</span>`).join('')}</div>`;
                 } else if (state.canManage) {
                     // Orange Warning Level 2 for Missing Tags
                     warningHtml = `<div class="warning-badge warn-orange" title="Missing Tags - Click to Regularize" onclick="openRegularize('${f.name}')">!</div>`;
@@ -1674,6 +1749,50 @@
             } catch (e) { showToast("UPDATE FAILED"); }
         }
 
+        window.loadBadgeRules = async () => {
+            const list = document.getElementById('badgeRulesList');
+            if (!list || list.style.display === 'none') return;
+            try {
+                const r = await fetch(API.badges);
+                const rules = await r.json();
+                list.innerHTML = '';
+                if (rules.length === 0) list.innerHTML = '<div style="color:var(--text-sec); font-family:var(--ui-font); padding:10px;">No rules defined.</div>';
+                rules.forEach(rl => {
+                    const idiv = document.createElement('div');
+                    idiv.style.cssText = "display:flex; justify-content:space-between; align-items:center; padding:5px; border-bottom:1px solid rgba(255,255,255,0.1); font-family:var(--tech-font); font-size:0.8rem;";
+                    idiv.innerHTML = `<div>${rl.icon} <strong>${rl.name}</strong> [${rl.condition_type} >= ${rl.condition_value}] ${rl.show_on_card ? '(Card Vis)' : ''}</div>
+                    <button class="post-btn-small" style="color:#E57373; border-color:#E57373; padding:2px 5px;" onclick="deleteBadgeRule('${rl.id}')">X</button>`;
+                    list.appendChild(idiv);
+                });
+            } catch (e) { }
+        }
+
+        window.createBadgeRule = async () => {
+            const nm = document.getElementById('bNameIn').value;
+            if (!nm) return showToast("NAME REQUIRED");
+            const data = {
+                user_id: userId,
+                name: nm,
+                icon: document.getElementById('bIconIn').value,
+                condition_type: document.getElementById('bTypeIn').value,
+                condition_value: document.getElementById('bValIn').value,
+                show_on_card: document.getElementById('bCardVisIn').checked
+            };
+            try {
+                const r = await fetch(API.badges, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                if (r.ok) { showToast("RULE DEPLOYED"); loadBadgeRules(); }
+                else showToast("DEPLOYMENT FAILED");
+            } catch (e) { showToast("SERVER ERROR"); }
+        }
+
+        window.deleteBadgeRule = async (id) => {
+            if (!confirm("Erase rule permanently?")) return;
+            try {
+                const r = await fetch(API.badges, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, rule_id: id }) });
+                if (r.ok) { showToast("RULE ERASED"); loadBadgeRules(); }
+            } catch (e) { }
+        }
+
         window.toggleServerPanel = () => { document.getElementById('serverPanel').classList.toggle('visible'); document.getElementById('serverTrigger').classList.toggle('active'); }
         window.toggleTheme = () => { document.body.classList.toggle('light-theme'); }
         window.toggleFavs = () => { state.filter = !state.filter; render(); document.getElementById('favBtn').classList.toggle('primary'); }
@@ -1683,7 +1802,13 @@
             document.querySelectorAll('.op-top-tab').forEach(e => e.classList.remove('active'));
             if (t === 'file') document.querySelectorAll('.op-top-tab')[0].classList.add('active');
             else if (t === 'personnel') document.querySelectorAll('.op-top-tab')[1].classList.add('active');
-            else if (t === 'settings') document.querySelectorAll('.op-top-tab')[2].classList.add('active');
+            else if (t === 'settings') {
+                document.querySelectorAll('.op-top-tab')[2].classList.add('active');
+                if (state.canManage) {
+                    const bs = document.getElementById('badgeStudioFol');
+                    if (bs) { bs.style.display = 'block'; loadBadgeRules(); }
+                }
+            }
         }
 
         async function vote(n, t) { if (!userId) return showToast("LOGIN REQ"); await fetch(API.vote, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, filename: n, type: t }) }); loadFiles().then(render); }
@@ -1739,41 +1864,59 @@
             document.getElementById('dropZ').textContent = "TRANSMITTING DATA...";
 
             let totalBytes = pendingUploads.reduce((acc, f) => acc + f.size, 0);
-            let estimatedMaxSec = Math.max(5, Math.ceil((totalBytes / 1048576) * 2));
-            let elapsedSec = 0;
-            const formatT = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
-
-            btn.textContent = `UPLOADING... [00:00 / ~${formatT(estimatedMaxSec)} MAX]`;
-            let timerInt = setInterval(() => {
-                elapsedSec++;
-                btn.textContent = `UPLOADING... [${formatT(elapsedSec)} / ~${formatT(estimatedMaxSec)} MAX]`;
-            }, 1000);
-            document.getElementById('dropZ').textContent = "TRANSMITTING DATA...";
-
+            let loadedBytes = new Array(pendingUploads.length).fill(0);
             const nm = document.getElementById('upName').value;
-
             let hasError = false;
-            for (let i = 0; i < pendingUploads.length; i++) {
-                const fd = new FormData();
-                fd.append('file', pendingUploads[i]);
-                fd.append('user_id', userId);
-                // Only apply custom name if it's a single file upload to avoid overwriting files
-                if (nm && pendingUploads.length === 1) fd.append('custom_name', nm);
 
-                try {
-                    const r = await fetch(API.upload, { method: 'POST', body: fd });
-                    if (!r.ok) {
-                        const err = await r.json();
-                        throw new Error(err.error || "Upload failed");
+            const uploadPromises = pendingUploads.map((file, i) => {
+                return new Promise((resolve, reject) => {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    fd.append('user_id', userId);
+                    if (nm && pendingUploads.length === 1) fd.append('custom_name', nm);
+                    const tagsInput = document.getElementById('upTags');
+                    if (tagsInput && tagsInput.value) {
+                        fd.append('tags', tagsInput.value);
                     }
-                } catch (e) {
-                    console.error("Failed to upload " + pendingUploads[i].name, e);
-                    showToast("ERROR: " + e.message);
-                    hasError = true;
-                }
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            loadedBytes[i] = e.loaded;
+                            const totalLoaded = loadedBytes.reduce((a, b) => a + b, 0);
+                            const percent = Math.round((totalLoaded / totalBytes) * 100);
+                            btn.textContent = `UPLOADING... [${percent}%]`;
+                            document.getElementById('dropZ').textContent = `TRANSMITTING DATA: ${percent}%`;
+                        }
+                    });
+
+                    xhr.addEventListener('load', () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve();
+                        } else {
+                            try {
+                                const err = JSON.parse(xhr.responseText);
+                                reject(new Error(err.error || "Upload failed"));
+                            } catch (ex) { reject(new Error("Upload failed")); }
+                        }
+                    });
+
+                    xhr.addEventListener('error', () => reject(new Error("Network Error")));
+                    xhr.addEventListener('abort', () => reject(new Error("Upload Aborted")));
+
+                    xhr.open('POST', API.upload);
+                    xhr.send(fd);
+                });
+            });
+
+            try {
+                await Promise.all(uploadPromises);
+            } catch (e) {
+                console.error("Upload failed", e);
+                showToast("ERROR: " + e.message);
+                hasError = true;
             }
 
-            clearInterval(timerInt);
             btn.textContent = "INITIATE UPLOAD"; btn.style.pointerEvents = 'auto';
             document.getElementById('dropZ').textContent = "[ DRAG & DROP OR CLICK TO UPLOAD ]";
 
@@ -1837,50 +1980,97 @@
 
             const btn = document.getElementById('convBtn');
             btn.style.pointerEvents = 'none';
+            btn.textContent = `UPLOADING RAW FILES... [0%]`;
 
-            let totalBytes = Array.from(files).reduce((acc, f) => acc + f.size, 0);
-            let estimatedMaxSec = Math.max(10, Math.ceil((totalBytes / 1048576) * 8));
-            let elapsedSec = 0;
-            const formatT = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
-
-            btn.textContent = `CONVERTING... [00:00 / ~${formatT(estimatedMaxSec)} MAX]`;
-            let timerInt = setInterval(() => {
-                elapsedSec++;
-                btn.textContent = `CONVERTING... [${formatT(elapsedSec)} / ~${formatT(estimatedMaxSec)} MAX]`;
-            }, 1000);
-
+            const autoUp = document.getElementById('cAutoUpload').checked;
+            const taskId = "task_" + Math.random().toString(36).substr(2, 9);
             const fd = new FormData();
             for (let i = 0; i < files.length; i++) fd.append('files', files[i]);
+            if (autoUp) { fd.append('auto_upload', 'true'); fd.append('user_id', userId); }
+            fd.append('task_id', taskId);
 
-            try {
-                const r = await fetch(API.convert, { method: 'POST', body: fd });
-                const d = await r.json();
+            let pollTimer = null;
+            let cLog = document.getElementById('cLog');
+            document.getElementById('cResults').style.display = 'block';
+            cLog.innerHTML = '<div style="color:var(--primary); font-family:var(--tech-font);">[UPLOADING RAW FILES TO SERVER...]</div>';
 
-                if (r.ok) {
-                    const cRes = document.getElementById('cResults');
-                    const cLog = document.getElementById('cLog');
-                    cLog.innerHTML = '';
+            const startPolling = () => {
+                pollTimer = setInterval(async () => {
+                    try {
+                        const r = await fetch('/api/progress?task_id=' + taskId);
+                        if (r.ok) {
+                            const pData = await r.json();
+                            if (pData.status === "converting") {
+                                btn.textContent = `CONVERTING... [${pData.percent}%]`;
+                                cLog.innerHTML = `<div style="color:var(--primary); font-family:var(--tech-font);">[PROCESSING: ${pData.current_file}]</div>
+                                  <div style="width:100%; background:var(--surface); height:5px; margin-top:5px;"><div style="width:${pData.percent}%; background:var(--primary); height:100%;"></div></div>`;
+                            }
+                        }
+                    } catch (e) { }
+                }, 1000);
+            };
 
-                    d.files.forEach(f => {
-                        const item = document.createElement('div'); item.className = 'c-item';
-                        item.innerHTML = `<span><span style="color:var(--primary);">FILE:</span> ${f}</span> 
-                            <a href="/api/download_converted/${d.batch_id}/${f}">
-                            <button class="post-btn-small" style="padding:2px 8px;">DL</button></a>`;
-                        cLog.appendChild(item);
-                    });
-
-                    document.getElementById('cZip').href = d.zip_url;
-                    cRes.style.display = 'block';
-                    showToast("CONVERSION COMPLETE");
-                } else {
-                    showToast("ERROR: " + d.error);
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    btn.textContent = `UPLOADING RAW FILES... [${percent}%]`;
                 }
-            } catch (e) {
+            });
+
+            xhr.addEventListener('readystatechange', () => {
+                if (xhr.readyState === 2 && !pollTimer) {
+                    startPolling();
+                }
+            });
+
+            xhr.addEventListener('load', async () => {
+                if (pollTimer) clearInterval(pollTimer);
+                btn.textContent = "CONVERT FORMAT";
+                btn.style.pointerEvents = 'auto';
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const d = JSON.parse(xhr.responseText);
+                        if (autoUp) {
+                            cLog.innerHTML += `<div style="color:#81D4FA; margin-top:5px;">[UPLOADED AND CATALOGUED]</div>`;
+                            document.getElementById('cZip').style.display = 'none';
+                            loadFiles().then(render);
+                            showToast("CONVERT & UPLOAD COMPLETE");
+                        } else {
+                            cLog.innerHTML = '';
+                            d.files.forEach(f => {
+                                const item = document.createElement('div'); item.className = 'c-item';
+                                item.innerHTML = `<span><span style="color:var(--primary);">FILE:</span> ${f}</span> 
+                                    <a href="/api/download_converted/${d.batch_id}/${f}">
+                                    <button class="post-btn-small" style="padding:2px 8px;">DL</button></a>`;
+                                cLog.appendChild(item);
+                            });
+                            document.getElementById('cZip').href = d.zip_url;
+                            document.getElementById('cZip').style.display = 'block';
+                            showToast("CONVERSION COMPLETE");
+                        }
+                    } catch (ex) { showToast("ERROR PARSING RESPONSE"); }
+                } else {
+                    showToast("ERROR OCURRED");
+                    try { const d = JSON.parse(xhr.responseText); if (d.error) showToast(d.error); } catch (e) { }
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                if (pollTimer) clearInterval(pollTimer);
                 showToast("CONVERSION FAILED");
-            }
-            clearInterval(timerInt);
-            btn.textContent = "CONVERT FORMAT";
-            btn.style.pointerEvents = 'auto';
+                btn.textContent = "CONVERT FORMAT";
+                btn.style.pointerEvents = 'auto';
+            });
+            xhr.addEventListener('abort', () => {
+                if (pollTimer) clearInterval(pollTimer);
+                btn.textContent = "CONVERT FORMAT";
+                btn.style.pointerEvents = 'auto';
+            });
+
+            xhr.open('POST', API.convert);
+            xhr.send(fd);
         }
 
         window.clearConversions = () => {

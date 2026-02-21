@@ -4,6 +4,11 @@ import random
 import sys
 import io
 import json
+import mimetypes
+import uuid # For generating unique task IDs
+
+# Global in-memory task tracker for long conversions
+progress_tracker = {}
 
 try:
     from dotenv import load_dotenv
@@ -159,12 +164,22 @@ def get_files():
         votes_res = supabase.table('votes').select('*').execute()
         db_votes = votes_res.data
         
+        # Fetch users to get their badges
+        users_res = supabase.table('users').select('id, badges').execute()
+        users_dict = {str(u['id']): u.get('badges', []) for u in users_res.data}
+        all_rules_dict = {r["id"]: r for r in get_all_badge_rules()}
+        
         files_out = []
         for f in db_files:
             filename = f['filename']
+            uploader_id = str(f.get('uploader_id', ''))
+            
             upvotes = [v for v in db_votes if v['filename'] == filename and v['vote_type'] == 'up']
             downvotes = [v for v in db_votes if v['filename'] == filename and v['vote_type'] == 'down']
             score = len(upvotes) - len(downvotes)
+            
+            uploader_badges = users_dict.get(uploader_id, [])
+            card_badges = [all_rules_dict[bid]['icon'] for bid in uploader_badges if bid in all_rules_dict and all_rules_dict[bid].get('show_on_card')]
             
             files_out.append({
                 "name": filename,
@@ -173,7 +188,9 @@ def get_files():
                 "downvotes": len(downvotes),
                 "tags": f.get('tags') or [],
                 "width": f.get('width', 0) or 0,
-                "height": f.get('height', 0) or 0
+                "height": f.get('height', 0) or 0,
+                "uploader_id": uploader_id,
+                "uploader_badges": card_badges
             })
             
         # Sort by Score descending
@@ -205,6 +222,62 @@ def can_manage(user_id):
 def check_auth():
     user_id = request.args.get('user_id')
     return jsonify({"can_manage": can_manage(user_id)})
+
+def process_mpgif_upload(temp_path, save_name, user_id, custom_name="", tags_list=[]):
+    """Core logic to push a valid .mpgif to Supabase Storage & Postgres."""
+    with open(temp_path, 'rb') as f:
+        file_bytes = f.read()
+
+    temp_mp4_path = os.path.join(FILES_DIR, save_name + '.mp4')
+    width, height = 0, 0
+    from fichier.mpgif_structure import MPGIFReader
+    import transcoder
+    
+    try:
+        reader = MPGIFReader(temp_path)
+        reader.read()
+        width, height = reader.width, reader.height
+        
+        # Upload .mpgif
+        try: supabase.storage.from_('mpgifs').upload(file=file_bytes, path=save_name, file_options={"upsert": "true", "content-type": "application/octet-stream"})
+        except: supabase.storage.from_('mpgifs').update(file=file_bytes, path=save_name, file_options={"upsert": "true", "content-type": "application/octet-stream"})
+
+        # Upload .webp
+        if reader.frames:
+            try: supabase.storage.from_('mpgifs').upload(file=reader.frames[0], path=save_name + '.webp', file_options={"upsert": "true", "content-type": "image/webp"})
+            except: supabase.storage.from_('mpgifs').update(file=reader.frames[0], path=save_name + '.webp', file_options={"upsert": "true", "content-type": "image/webp"})
+
+        # Upload .mp4
+        try:
+            transcoder.transcode_to_mp4(temp_path, temp_mp4_path)
+            if os.path.exists(temp_mp4_path):
+                with open(temp_mp4_path, 'rb') as f_mp4:
+                    mp4_bytes = f_mp4.read()
+                    try: supabase.storage.from_('mpgifs').upload(file=mp4_bytes, path=save_name + '.mp4', file_options={"upsert": "true", "content-type": "video/mp4"})
+                    except: supabase.storage.from_('mpgifs').update(file=mp4_bytes, path=save_name + '.mp4', file_options={"upsert": "true", "content-type": "video/mp4"})
+        except Exception as t_err: print(f"Transcode error: {t_err}")
+
+        # Postgres Upsert
+        supabase.table('files').upsert({
+            "filename": save_name, "uploader_id": user_id, "custom_name": custom_name,
+            "width": width, "height": height, "tags": tags_list
+        }).execute()
+
+        new_badges = update_user_stat(user_id, "uploads")
+        return {"status": "ok", "filename": save_name, "badges_earned": new_badges}
+
+    except Exception as ex:
+        print(f"Validation/Upload failed: {ex}")
+        raise ex
+    finally:
+        if os.path.exists(temp_mp4_path): os.remove(temp_mp4_path)
+
+@app.route('/api/progress')
+def api_progress():
+    task_id = request.args.get('task_id')
+    if task_id in progress_tracker:
+        return jsonify(progress_tracker[task_id])
+    return jsonify({"status": "unknown"})
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
@@ -242,81 +315,14 @@ def upload_file():
             with open(temp_path, 'wb') as f:
                 f.write(file_bytes)
                 
-            temp_mp4_path = os.path.join(FILES_DIR, save_name + '.mp4')
-            width, height = 0, 0
-            
             try:
-                from fichier.mpgif_structure import MPGIFReader
-                reader = MPGIFReader(temp_path)
-                reader.read()
-                width, height = reader.width, reader.height
-                
-                # Validation Passed: Upload Main File to Supabase Storage
-                try:
-                    supabase.storage.from_('mpgifs').upload(
-                        file=file_bytes,
-                        path=save_name,
-                        file_options={"upsert": "true", "content-type": "application/octet-stream"}
-                    )
-                except Exception as e:
-                    try:
-                        supabase.storage.from_('mpgifs').update(
-                            file=file_bytes,
-                            path=save_name,
-                            file_options={"upsert": "true", "content-type": "application/octet-stream"}
-                        )
-                    except Exception as e2: print(f"Storage upload failed: {e2}")
-
-                # Upload Thumbnail
-                if reader.frames:
-                    frame1 = reader.frames[0]
-                    try:
-                        supabase.storage.from_('mpgifs').upload(file=frame1, path=save_name + '.webp', file_options={"upsert": "true", "content-type": "image/webp"})
-                    except:
-                        try: supabase.storage.from_('mpgifs').update(file=frame1, path=save_name + '.webp', file_options={"upsert": "true", "content-type": "image/webp"})
-                        except: pass
-                
-                # Transcode and Upload MP4 (For Discord Embeds)
-                import transcoder
-                try:
-                    transcoder.transcode_to_mp4(temp_path, temp_mp4_path)
-                    if os.path.exists(temp_mp4_path):
-                        with open(temp_mp4_path, 'rb') as f_mp4:
-                            mp4_bytes = f_mp4.read()
-                            try:
-                                supabase.storage.from_('mpgifs').upload(file=mp4_bytes, path=save_name + '.mp4', file_options={"upsert": "true", "content-type": "video/mp4"})
-                            except:
-                                try: supabase.storage.from_('mpgifs').update(file=mp4_bytes, path=save_name + '.mp4', file_options={"upsert": "true", "content-type": "video/mp4"})
-                                except: pass
-                except Exception as t_err: print(f"Transcode error: {t_err}")
-
-            except Exception as ex: 
-                print(f"Validation failed (Not a valid MPGIF): {ex}")
-                if os.path.exists(temp_path): os.remove(temp_path)
+                res = process_mpgif_upload(temp_path, save_name, user_id, custom_name, tags_list)
+                return jsonify(res), 200
+            except Exception as ex:
                 return jsonify({"error": f"Fichier corrompu ou fausse extension. Veuillez utiliser le Convertisseur. D\u00e9tail: {ex}"}), 400
-            
             finally:
                 if os.path.exists(temp_path): os.remove(temp_path)
-                if os.path.exists(temp_mp4_path): os.remove(temp_mp4_path)
                 
-            # Upsert into PostgreSQL 'files' table
-            supabase.table('files').upsert({
-                "filename": save_name,
-                "uploader_id": user_id,
-                "custom_name": custom_name,
-                "width": width,
-                "height": height,
-                "tags": tags_list
-            }).execute()
-            
-            # --- Update Stats ---
-            new_badges = update_user_stat(user_id, "uploads")
-            
-            return jsonify({
-                "status": "ok", 
-                "filename": save_name,
-                "badges_earned": new_badges
-            }), 200
         else:
             return jsonify({"error": "Invalid file type (must be .mpgif)"}), 400
             
@@ -683,12 +689,12 @@ def publish():
         print(f"Publish error: {e}")
         return jsonify({"error": str(e)}), 500
 
-DEFAULT_BADGES = {
-    "first_upload": {"name": "First Transmission", "icon": "📡", "desc": "Uploaded 1 MPGIF", "condition": {"type": "upload", "val": 1}},
-    "pro_uploader": {"name": "Logistics Officer", "icon": "📦", "desc": "Uploaded 5 MPGIFs", "condition": {"type": "upload", "val": 5}},
-    "critic": {"name": "Analyst", "icon": "🧐", "desc": "Voted 10 times", "condition": {"type": "vote", "val": 10}},
-    "verified": {"name": "Verified Operator", "icon": "💠", "desc": "Official Endfield Operator", "condition": {"type": "manual"}}
-}
+def get_all_badge_rules():
+    if not supabase: return []
+    try:
+        res = supabase.table('badge_rules').select('*').execute()
+        return res.data
+    except: return []
 
 def get_user_data(user_id):
     if not supabase: return {}
@@ -701,39 +707,35 @@ def get_user_data(user_id):
         return {}
 
 def update_user_stat(user_id, stat, delta=1):
-    """Updates a stat (uploads/votes) and checks for badge awards."""
+    """Updates a stat (uploads/votes) and checks for badge awards dynamically."""
     if not supabase: return []
     try:
         res = supabase.table('users').select('*').eq('id', user_id).execute()
-        if not res.data:
-            user_data = {"id": user_id, "uploads": 0, "votes": 0, "badges": []}
-            supabase.table('users').insert(user_data).execute()
-        else:
-            user_data = res.data[0]
+        user_data = res.data[0] if res.data else {"id": str(user_id), "uploads": 0, "votes": 0, "badges": []}
             
         user_data[stat] = user_data.get(stat, 0) + delta
-        
         my_badges = user_data.get("badges", [])
         new_badges = []
         
-        for bid, bdef in DEFAULT_BADGES.items():
+        all_rules = get_all_badge_rules()
+        for rule in all_rules:
+            bid = rule["id"]
             if bid in my_badges: continue
             
-            cond = bdef.get("condition", {})
-            if cond.get("type") == "upload" and stat == "uploads":
-                if user_data["uploads"] >= cond["val"]:
-                    my_badges.append(bid)
-                    new_badges.append(bdef)
-                    
-            elif cond.get("type") == "vote" and stat == "votes":
-                 if user_data["votes"] >= cond["val"]:
-                    my_badges.append(bid)
-                    new_badges.append(bdef)
+            ctype = rule.get("condition_type")
+            cval = rule.get("condition_value", 0)
+            
+            if ctype == "upload" and stat == "uploads" and user_data["uploads"] >= cval:
+                my_badges.append(bid)
+                new_badges.append(rule)
+            elif ctype == "vote" and stat == "votes" and user_data["votes"] >= cval:
+                my_badges.append(bid)
+                new_badges.append(rule)
 
-        supabase.table('users').update({
-            stat: user_data[stat],
-            "badges": my_badges
-        }).eq('id', user_id).execute()
+        if not res.data:
+            supabase.table('users').insert({**user_data, stat: user_data[stat], "badges": my_badges}).execute()
+        else:
+            supabase.table('users').update({stat: user_data[stat], "badges": my_badges}).eq('id', user_id).execute()
         
         return new_badges
     except Exception as e:
@@ -744,11 +746,11 @@ def update_user_stat(user_id, stat, delta=1):
 def get_user_profile(user_id):
     """Returns profile info + fetches Discord Avatar."""
     data = get_user_data(user_id)
-    badges_def = DEFAULT_BADGES
+    all_rules_dict = {r["id"]: r for r in get_all_badge_rules()}
     
     enriched_badges = []
     for bid in data.get("badges", []):
-         if bid in badges_def: enriched_badges.append(badges_def[bid])
+         if bid in all_rules_dict: enriched_badges.append(all_rules_dict[bid])
     
     avatar_url = None
     username = "UNKNOWN"
@@ -864,6 +866,41 @@ def get_guild_members():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# --- BADGE MANAGER ENDPOINTS ---
+@app.route('/api/badges/rules', methods=['GET', 'POST', 'DELETE'])
+def manage_badge_rules():
+    if not supabase: return jsonify({"error": "No DB connection"}), 500
+    
+    if request.method == 'GET':
+        return jsonify(get_all_badge_rules())
+        
+    data = request.json
+    user_id = data.get('user_id')
+    if not can_manage(user_id):
+        return jsonify({"error": "Admin clearance required"}), 403
+        
+    if request.method == 'POST':
+        try:
+            new_rule = {
+                "name": data.get("name"),
+                "icon": data.get("icon"),
+                "condition_type": data.get("condition_type"),
+                "condition_value": int(data.get("condition_value", 0)),
+                "show_on_card": data.get("show_on_card", False)
+            }
+            res = supabase.table('badge_rules').insert(new_rule).execute()
+            return jsonify({"status": "ok", "rule": res.data[0]})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+            
+    if request.method == 'DELETE':
+        rule_id = data.get("rule_id")
+        try:
+            supabase.table('badge_rules').delete().eq('id', rule_id).execute()
+            return jsonify({"status": "deleted"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
 # --- EXISTING ENDPOINTS UPDATES ---
 
 @app.route('/api/favorites', methods=['GET', 'POST'])
@@ -907,6 +944,13 @@ def convert_file():
     files = request.files.getlist('files')
     if not files: return jsonify({"error": "Empty file list"}), 400
     
+    task_id = request.form.get('task_id', 'unknown')
+    auto_upload = request.form.get('auto_upload') == 'true'
+    user_id = request.form.get('user_id')
+
+    if auto_upload and not can_manage(user_id):
+         return jsonify({"error": "Unauthorized to auto-upload"}), 403
+    
     import zipfile
     import uuid
     import shutil
@@ -922,7 +966,7 @@ def convert_file():
         ext = os.path.splitext(file.filename)[1].lower()
         if ext not in ['.mp4', '.mpgif', '.gif']: continue
         target_ext = '.mpgif' if ext in ['.mp4', '.mov', '.webm', '.gif'] else '.mp4'
-        base_name = os.path.splitext(file.filename)[0] + target_ext
+        base_name = secure_filename(os.path.splitext(file.filename)[0] + target_ext)
         
         # We need a source path for the web upload
         src_path = os.path.join(cache_dir, f"raw_{file.filename}")
@@ -930,20 +974,44 @@ def convert_file():
         
         file.save(src_path)
         
+        def cb(saved, total, elapsed, eta):
+            percent = int((saved / total) * 100) if total > 0 else 0
+            percent = max(0, min(100, percent))
+            progress_tracker[task_id] = {
+                "status": "converting", 
+                "percent": percent, 
+                "current_file": base_name
+            }
+
         # ACTUALLY execute the conversion!
         try:
             from convertisseur.converter import video_to_mpgif
-            video_to_mpgif(src_path, out_path, preset="balanced")
+            progress_tracker[task_id] = {"status": "converting", "percent": 0, "current_file": base_name}
+            video_to_mpgif(src_path, out_path, preset="balanced", progress_callback=cb)
+            
+            if auto_upload:
+                try:
+                    process_mpgif_upload(out_path, base_name, user_id)
+                except Exception as ue:
+                    print(f"Auto-upload failed for {base_name}: {ue}")
+            
             converted_files.append(base_name)
         except Exception as e:
             print(f"Failed to convert {file.filename}: {e}")
         finally:
             if os.path.exists(src_path):
                 os.remove(src_path)
+            if auto_upload and os.path.exists(out_path):
+                try: os.remove(out_path)
+                except: pass
         
     if not converted_files:
         return jsonify({"error": "No valid files converted"}), 400
         
+    if auto_upload:
+        # Don't generate zip, just return ok
+        return jsonify({"status": "ok", "auto_uploaded": True}), 200
+
     zip_filename = f"Endfield_Conversion_{batch_id}.zip"
     zip_path = os.path.join(BASE_DIR, '.cache', zip_filename)
     

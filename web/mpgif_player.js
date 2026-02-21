@@ -87,6 +87,11 @@ class MPGIFPlayer {
         await this.initAudio();
         this.isPlaying = true;
 
+        // Final fallback for AudioContext policy
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+            try { await this.audioCtx.resume(); } catch (e) { }
+        }
+
         // Audio
         if (this.audioCtx && this.audioBuffer) {
             if (this.audioSource) try { this.audioSource.stop(); } catch (e) { }
