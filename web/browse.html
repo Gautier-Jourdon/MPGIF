@@ -1090,6 +1090,86 @@
                 box-shadow: 0 0 0 4px var(--primary), 0 0 20px var(--primary-glow);
             }
         }
+
+        /* ___ CATEGORIES & LEADERBOARD UI ___ */
+        .category-nav {
+            display: flex;
+            gap: 15px;
+            padding: 15px 40px;
+            background: rgba(0, 0, 0, 0.4);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+        }
+
+        .cat-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-sec);
+            font-family: var(--tech-font);
+            font-size: 0.85rem;
+            cursor: pointer;
+            padding: 5px 15px;
+            border-radius: 20px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .cat-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .cat-btn.active {
+            color: var(--primary);
+            border-color: var(--primary);
+            background: rgba(255, 213, 79, 0.1);
+            text-shadow: 0 0 5px var(--primary-glow);
+        }
+
+        .lb-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 213, 79, 0.2);
+            transition: background 0.2s;
+        }
+
+        .lb-row:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .lb-rank {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            width: 40px;
+            text-align: center;
+            font-family: var(--tech-font);
+        }
+
+        .lb-userinfo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-grow: 1;
+        }
+
+        .lb-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 5px;
+            border: 1px solid var(--primary);
+            object-fit: cover;
+        }
+
+        .lb-stats {
+            text-align: right;
+            font-family: var(--tech-font);
+            font-size: 0.85rem;
+            color: var(--text-sec);
+            min-width: 100px;
+        }
     </style>
 </head>
 
@@ -1108,6 +1188,7 @@
             <button class="btn" id="converterBtn"
                 onclick="document.getElementById('converterModal').style.display='flex'"><i>↺</i> CONVERT</button>
             <button class="btn" onclick="toggleFavs()" id="favBtn"><i>★</i> FAVS</button>
+            <button class="btn" id="hofBtn" onclick="openLeaderboard()"><i>🏆</i> FAME</button>
             <button class="btn" onclick="toggleTheme()" id="themeBtn"><i>☀</i></button>
             <button class="btn" onclick="startTutorial()" id="helpBtn" title="Help / Tutorial"><i>?</i></button>
             <button class="btn primary" id="uploadBtn"
@@ -1152,6 +1233,15 @@
         </div>
     </header>
 
+    <div class="category-nav" id="categoryNav">
+        <button class="cat-btn active" onclick="setCategory('')">ALL FILES</button>
+        <button class="cat-btn" onclick="setCategory('auto-tagged')">AI TAGGED</button>
+        <button class="cat-btn" onclick="setCategory('gaming')">GAMING</button>
+        <button class="cat-btn" onclick="setCategory('anime')">ANIME</button>
+        <button class="cat-btn" onclick="setCategory('reaction')">REACTION</button>
+        <button class="cat-btn" onclick="setCategory('meme')">MEME</button>
+    </div>
+
     <div class="wrapper">
         <div id="s-shorts">
             <div class="section-header">
@@ -1177,6 +1267,30 @@
     </footer>
 
     <div id="toast">SYSTEM ALERT</div>
+
+    <!-- LEADERBOARD MODAL -->
+    <div class="modal-overlay" id="leaderboardModal">
+        <div class="dossier-panel" style="width:600px; max-height:85vh; display:flex; flex-direction:column;">
+            <div class="panel-head" style="margin-bottom: 20px;">
+                <span>HALL OF FAME</span>
+                <span onclick="document.getElementById('leaderboardModal').style.display='none'"
+                    style="cursor:pointer; color:var(--primary);">[X]</span>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-bottom:15px; font-family:var(--tech-font);">
+                <button class="btn primary" id="sortScoreBtn" onclick="loadLeaderboard('score')"
+                    style="flex:1; justify-content:center;">TOP REPUTATION</button>
+                <button class="btn" id="sortUploadsBtn" onclick="loadLeaderboard('uploads')"
+                    style="flex:1; justify-content:center;">TOP UPLOADERS</button>
+            </div>
+
+            <div id="leaderboardList" style="flex:1; overflow-y:auto; padding-right:10px;">
+                <!-- Filled via JS -->
+                <div style="text-align:center; padding:30px; color:var(--text-sec); font-family:var(--tech-font);">
+                    FETCHING INTEL...</div>
+            </div>
+        </div>
+    </div>
 
     <!-- DISCLAIMER MODAL -->
     <div class="modal-overlay" id="disclaimerModal">
@@ -1509,7 +1623,7 @@
     <script src="mpgif_player.js"></script>
     <script>
         const API = { files: '/api/files', vote: '/api/vote', favorites: '/api/favorites', upload: '/api/upload', delete: '/api/delete', publish: '/api/publish', user: '/api/user', members: '/api/members', guild: '/api/guild/info', update_user: '/api/user/update', channels: '/api/channels', convert: '/api/convert', regularize: '/api/regularize', badges: '/api/badges/rules' };
-        let state = { files: [], favorites: [], filter: false, currentPlayer: null, canManage: false };
+        let state = { files: [], favorites: [], filter: false, category: '', currentPlayer: null, canManage: false };
         const p = new URLSearchParams(window.location.search);
         const userId = p.get('uid'); const username = p.get('user') || 'GUEST'; const guildId = p.get('gid');
 
@@ -1579,12 +1693,20 @@
             sh.innerHTML = ''; vi.innerHTML = '';
             let list = state.files.filter(f => {
                 const s = search.toLowerCase();
-                if (f.name.toLowerCase().includes(s)) return true;
-                if (f.tags) {
-                    let safeTags = Array.isArray(f.tags) ? f.tags : (typeof f.tags === 'string' ? [f.tags] : []);
-                    if (safeTags.some(t => typeof t === 'string' && t.toLowerCase().includes(s))) return true;
+                let matchesSearch = false;
+                if (f.name.toLowerCase().includes(s)) matchesSearch = true;
+
+                let safeTags = Array.isArray(f.tags) ? f.tags : (typeof f.tags === 'string' ? [f.tags] : []);
+                if (safeTags.some(t => typeof t === 'string' && t.toLowerCase().includes(s))) matchesSearch = true;
+
+                if (!matchesSearch && s !== '') return false;
+
+                // Category Filter
+                if (state.category !== '') {
+                    if (!safeTags.some(t => typeof t === 'string' && t.toLowerCase() === state.category.toLowerCase())) return false;
                 }
-                return false;
+
+                return true;
             });
             if (state.filter) list = list.filter(f => state.favorites.includes(f.name));
 
@@ -1665,6 +1787,99 @@
                 });
             });
         }
+
+        window.setCategory = (cat) => {
+            state.category = cat;
+            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            render(document.getElementById('searchInput').value);
+        };
+
+        window.openLeaderboard = () => {
+            document.getElementById('leaderboardModal').style.display = 'flex';
+            loadLeaderboard('score');
+        };
+
+        window.loadLeaderboard = async (sortBy) => {
+            const list = document.getElementById('leaderboardList');
+            document.getElementById('sortScoreBtn').className = sortBy === 'score' ? 'btn primary' : 'btn';
+            document.getElementById('sortUploadsBtn').className = sortBy === 'uploads' ? 'btn primary' : 'btn';
+
+            list.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-sec); font-family:var(--tech-font);">FETCHING INTEL...</div>`;
+
+            if (!guildId) {
+                list.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-sec); font-family:var(--tech-font);">ERROR: DISCORD CONNECTION OFFLINE</div>`;
+                return;
+            }
+
+            try {
+                const r = await fetch(API.members + '?guild_id=' + guildId);
+                let members = await r.json();
+
+                if (members.error) {
+                    list.innerHTML = `<div style="text-align:center; padding:30px; color:#ef5350; font-family:var(--tech-font);">${members.error}</div>`;
+                    return;
+                }
+
+                // Exclude members with 0 stats
+                members = members.filter(m => m.stats && (m.stats.votes > 0 || m.stats.uploads > 0));
+
+                if (sortBy === 'score') {
+                    members.sort((a, b) => b.stats.votes - a.stats.votes);
+                } else if (sortBy === 'uploads') {
+                    members.sort((a, b) => b.stats.uploads - a.stats.uploads);
+                }
+
+                list.innerHTML = '';
+                if (members.length === 0) {
+                    list.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-sec); font-family:var(--tech-font);">NO DATA AVAILABLE</div>`;
+                    return;
+                }
+
+                members.forEach((m, idx) => {
+                    const row = document.createElement('div');
+                    row.className = 'lb-row';
+
+                    let bgCol = "transparent";
+                    if (idx === 0) bgCol = "rgba(255, 215, 0, 0.1)"; // Gold
+                    else if (idx === 1) bgCol = "rgba(192, 192, 192, 0.1)"; // Silver
+                    else if (idx === 2) bgCol = "rgba(205, 127, 50, 0.1)"; // Bronze
+
+                    row.style.background = bgCol;
+
+                    const avatarSrc = m.avatar || `https://cdn.discordapp.com/embed/avatars/${m.id % 5}.png`;
+                    const rarityData = getRarityData(m);
+
+                    let badgesHtml = '';
+                    if (m.badges && m.badges.length > 0) {
+                        badgesHtml = `<div style="display:flex; gap:2px; margin-top:2px;">` +
+                            m.badges.map(icon => `<span style="font-size:0.8rem; background:rgba(0,0,0,0.5); padding:2px; border-radius:3px; border:1px solid var(--border);">${icon}</span>`).join('') +
+                            `</div>`;
+                    }
+
+                    row.innerHTML = `
+                        <div class="lb-rank">#${idx + 1}</div>
+                        <div class="lb-userinfo" onclick="openProfile('${m.id}')" style="cursor:pointer;">
+                            <img class="lb-avatar" src="${avatarSrc}" style="border-color:${rarityData.color}">
+                            <div>
+                                <div style="font-weight:bold; color:var(--text-main);">${m.global_name || m.username}</div>
+                                <div style="font-size:0.75rem; color:var(--text-sec); font-family:var(--tech-font);">${rarityData.label}</div>
+                                ${badgesHtml}
+                            </div>
+                        </div>
+                        <div class="lb-stats">
+                            <span style="color:var(--primary); font-size:1.1rem; font-weight:bold;">${sortBy === 'score' ? m.stats.votes : m.stats.uploads}</span><br>
+                            ${sortBy === 'score' ? 'REPUTATION' : 'FILES UPLOADED'}
+                        </div>
+                    `;
+                    list.appendChild(row);
+                });
+
+            } catch (err) {
+                console.error("Leaderboard error:", err);
+                list.innerHTML = `<div style="text-align:center; padding:30px; color:#ef5350; font-family:var(--tech-font);">SYSTEM FAILURE</div>`;
+            }
+        };
 
         window.openProfile = async (tid) => {
             if (!tid) return;

@@ -912,6 +912,8 @@ def get_guild_members():
             u_res = supabase.table('users').select('*').execute()
             for row in u_res.data:
                 db_users[row['id']] = row
+                
+        all_rules_dict = {r["id"]: r for r in get_all_badge_rules()}
         
         parsed_members = []
         for m in members_data:
@@ -921,6 +923,8 @@ def get_guild_members():
             
             db_u = db_users.get(uid, {"uploads":0, "votes":0})
             stats = {"uploads": db_u.get("uploads", 0), "votes": db_u.get("votes", 0)}
+            user_badges = db_u.get("badges", [])
+            card_badges = [all_rules_dict[bid]['icon'] for bid in user_badges if bid in all_rules_dict and all_rules_dict[bid].get('show_on_card')]
             
             parsed_members.append({
                 "id": uid,
@@ -930,7 +934,8 @@ def get_guild_members():
                 "is_bot": is_bot,
                 "is_admin": is_admin_user(uid),
                 "is_mod": is_mod_user(uid),
-                "stats": stats
+                "stats": stats,
+                "badges": card_badges
             })
             
         return jsonify(parsed_members)
