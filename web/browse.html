@@ -1563,7 +1563,15 @@
         function render(search = '') {
             const sh = document.getElementById('grid-shorts'); const vi = document.getElementById('grid-videos');
             sh.innerHTML = ''; vi.innerHTML = '';
-            let list = state.files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
+            let list = state.files.filter(f => {
+                const s = search.toLowerCase();
+                if (f.name.toLowerCase().includes(s)) return true;
+                if (f.tags) {
+                    let safeTags = Array.isArray(f.tags) ? f.tags : (typeof f.tags === 'string' ? [f.tags] : []);
+                    if (safeTags.some(t => typeof t === 'string' && t.toLowerCase().includes(s))) return true;
+                }
+                return false;
+            });
             if (state.filter) list = list.filter(f => state.favorites.includes(f.name));
 
             list.forEach(f => {
@@ -1574,7 +1582,6 @@
 
                 const isFav = state.favorites.includes(f.name);
 
-                let tagsHtml = '';
                 let warningHtml = '';
 
                 // Tags Setup
@@ -1582,9 +1589,7 @@
                 if (Array.isArray(f.tags)) safeTags = f.tags;
                 else if (typeof f.tags === 'string') safeTags = [f.tags];
 
-                if (safeTags.length > 0) {
-                    tagsHtml = `<div class="tag-list">${safeTags.map(t => `<span class="tag-badge">${t}</span>`).join('')}</div>`;
-                } else if (state.canManage) {
+                if (safeTags.length === 0 && state.canManage) {
                     // Orange Warning Level 2 for Missing Tags
                     warningHtml = `<div class="warning-badge warn-orange" title="Missing Tags - Click to Regularize" onclick="openRegularize('${f.name}')">!</div>`;
                 }
@@ -1598,7 +1603,6 @@
                      <div class="card-actions">
                          <div class="filename" title="${f.name}">${f.name}</div>
                      </div>
-                     ${tagsHtml}
                      <div class="card-actions" style="margin-top:10px;">
                          <div style="display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.3); border-radius:15px; padding:2px 5px;">
                              <button class="icon-btn icon-btn-vote" onclick="vote('${f.name}','down')">▼</button>
