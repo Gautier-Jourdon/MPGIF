@@ -1076,10 +1076,12 @@ def convert_file():
                     process_mpgif_upload(out_path, base_name, user_id)
                 except Exception as ue:
                     print(f"Auto-upload failed for {base_name}: {ue}")
+                    return jsonify({"error": f"Auto-upload failed: {str(ue)}"}), 500
             
             converted_files.append(base_name)
         except Exception as e:
             print(f"Failed to convert {file.filename}: {e}")
+            return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
         finally:
             if os.path.exists(src_path):
                 os.remove(src_path)
@@ -1140,11 +1142,14 @@ def upscale_avatar():
             return jsonify({"error": "Missing parameters"}), 400
             
         sys.path.append(os.path.dirname(BASE_DIR))
-        import upscaler
-        
-        b64_img = upscaler.upscale_image_base64(avatar_url, model, scale)
-        return jsonify({"success": True, "image_b64": b64_img})
-        
+        try:
+            import upscaler
+            b64_img = upscaler.upscale_image_base64(avatar_url, model, scale)
+            return jsonify({"success": True, "image_b64": b64_img})
+        except ImportError:
+            print("Upscaler module not found. Skipping upscale.")
+            return jsonify({"error": "Upscaler module not installed"}), 501
+            
     except Exception as e:
         print(f"Upscale API error: {e}")
         return jsonify({"error": str(e)}), 500
