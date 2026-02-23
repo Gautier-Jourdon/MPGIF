@@ -1027,8 +1027,11 @@ def convert_file():
     
     start_time = request.form.get('start_time')
     if start_time: start_time = float(start_time)
+    else: start_time = None
+    
     end_time = request.form.get('end_time')
     if end_time: end_time = float(end_time)
+    else: end_time = None
 
     if auto_upload and not can_manage(user_id):
          return jsonify({"error": "Unauthorized to auto-upload"}), 403
