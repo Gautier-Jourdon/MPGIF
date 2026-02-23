@@ -150,8 +150,7 @@ def video_to_mpgif(input_path, output_path, preset=None, target_fps=15, width=48
                         avg_time_per_frame = elapsed / saved_count
                         remaining_frames = total_frames_target - saved_count
                         eta = remaining_frames * avg_time_per_frame
-                        progress = min(99, (saved_count / total_frames_target) * 100) # Cap at 99 so 100% is only on true finish
-                        progress_callback(saved_count, total_frames_target, elapsed, eta, progress=progress)
+                        progress_callback(saved_count, total_frames_target, elapsed, eta)
 
             count += 1
             
